@@ -100,29 +100,40 @@ function stripHtml(text: string): string {
   return text.replace(/<[^>]*>/g, '').trim();
 }
 
-export async function fetchBibleVerses(range: VerseRange): Promise<RawVerse[]> {
+/**
+ * mode:
+ *  - 'krv' (기본): WLC + KRV 병렬 fetch (기존 방식)
+ *  - 'hebrew-only': WLC만 fetch, korean은 빈 문자열 (AI 번역 전용)
+ */
+export async function fetchBibleVerses(
+  range: VerseRange,
+  mode: 'krv' | 'hebrew-only' = 'krv',
+): Promise<RawVerse[]> {
   const results: RawVerse[] = [];
 
   for (let ch = range.startChapter; ch <= range.endChapter; ch++) {
-    const [hebrewRes, koreanRes] = await Promise.all([
-      fetch(`https://bolls.life/get-text/WLC/${range.book}/${ch}/`).then(
-        (r) => {
-          if (!r.ok) throw new Error(`WLC API 오류: ${r.status} (${ch}장)`);
-          return r.json() as Promise<BollsVerse[]>;
-        }
-      ),
-      fetch(`https://bolls.life/get-text/KRV/${range.book}/${ch}/`).then(
-        (r) => {
-          if (!r.ok) throw new Error(`KRV API 오류: ${r.status} (${ch}장)`);
-          return r.json() as Promise<BollsVerse[]>;
-        }
-      ),
-    ]);
+    const hebrewPromise = fetch(
+      `https://bolls.life/get-text/WLC/${range.book}/${ch}/`,
+    ).then((r) => {
+      if (!r.ok) throw new Error(`WLC API 오류: ${r.status} (${ch}장)`);
+      return r.json() as Promise<BollsVerse[]>;
+    });
 
-    const koreanMap = new Map<number, string>();
-    for (const v of koreanRes) {
-      koreanMap.set(v.verse, stripHtml(v.text));
+    let koreanMap = new Map<number, string>();
+
+    if (mode === 'krv') {
+      const koreanRes = await fetch(
+        `https://bolls.life/get-text/KRV/${range.book}/${ch}/`,
+      ).then((r) => {
+        if (!r.ok) throw new Error(`KRV API 오류: ${r.status} (${ch}장)`);
+        return r.json() as Promise<BollsVerse[]>;
+      });
+      for (const v of koreanRes) {
+        koreanMap.set(v.verse, stripHtml(v.text));
+      }
     }
+
+    const hebrewRes = await hebrewPromise;
 
     for (const v of hebrewRes) {
       const verseNum = v.verse;

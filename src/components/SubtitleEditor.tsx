@@ -17,9 +17,11 @@ export const SubtitleEditor: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
 
-  // 단어 치환
-  const [findWord, setFindWord] = useState('');
-  const [replaceWord, setReplaceWord] = useState('');
+  // 단어 치환 (다중 규칙)
+  type ReplaceRule = { find: string; replace: string };
+  const [replaceRules, setReplaceRules] = useState<ReplaceRule[]>([
+    { find: '', replace: '' },
+  ]);
   const [replaceMsg, setReplaceMsg] = useState('');
   const [replaceOpen, setReplaceOpen] = useState(false);
 
@@ -112,44 +114,69 @@ export const SubtitleEditor: React.FC = () => {
     [safeIndex],
   );
 
-  // 일치 건수 미리보기
+  // 치환 규칙 관리
+  const addRule = useCallback(() => {
+    setReplaceRules((prev) => [...prev, { find: '', replace: '' }]);
+  }, []);
+
+  const removeRule = useCallback((idx: number) => {
+    setReplaceRules((prev) => {
+      if (prev.length <= 1) return [{ find: '', replace: '' }];
+      return prev.filter((_, i) => i !== idx);
+    });
+  }, []);
+
+  const updateRule = useCallback(
+    (idx: number, field: 'find' | 'replace', value: string) => {
+      setReplaceRules((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)),
+      );
+    },
+    [],
+  );
+
+  // 일치 건수 미리보기 (모든 규칙 합산)
   const matchPreview = useMemo(() => {
-    if (!findWord) return { total: 0, current: 0 };
-    const escaped = findWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped, 'g');
+    const activeRules = replaceRules.filter((r) => r.find);
+    if (activeRules.length === 0) return { total: 0, current: 0 };
 
     let total = 0;
     let current = 0;
     editData.scenes.forEach((s, i) => {
       let sceneCount = 0;
-      sceneCount += (s.subtitle?.match(regex) || []).length;
-      s.verses.forEach((v) => {
-        sceneCount += (v.korean?.match(regex) || []).length;
-        sceneCount += (v.highlightMean?.match(regex) || []).length;
-      });
+      for (const rule of activeRules) {
+        const escaped = rule.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'g');
+        sceneCount += (s.subtitle?.match(regex) || []).length;
+        s.verses.forEach((v) => {
+          sceneCount += (v.korean?.match(regex) || []).length;
+          sceneCount += (v.highlightMean?.match(regex) || []).length;
+        });
+      }
       total += sceneCount;
       if (i === safeIndex) current = sceneCount;
     });
     return { total, current };
-  }, [findWord, editData, safeIndex]);
+  }, [replaceRules, editData, safeIndex]);
 
-  // 단어 치환 실행 (전체 또는 현재 장면만)
+  // 단어 치환 실행 (전체 또는 현재 장면만, 모든 규칙 적용)
   const handleReplace = useCallback(
     (scope: 'all' | 'current') => {
-      if (!findWord) return;
+      const activeRules = replaceRules.filter((r) => r.find);
+      if (activeRules.length === 0) return;
 
       let count = 0;
-      const countingReplace = (
-        text: string | undefined,
-      ): string | undefined => {
+      const applyRules = (text: string | undefined): string | undefined => {
         if (!text) return text;
-        const regex = new RegExp(
-          findWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-          'g',
-        );
-        const matches = text.match(regex);
-        if (matches) count += matches.length;
-        return text.split(findWord).join(replaceWord);
+        let result = text;
+        for (const rule of activeRules) {
+          const escaped = rule.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(escaped, 'g');
+          const matches = result.match(regex);
+          if (matches) count += matches.length;
+          result = result.split(rule.find).join(rule.replace);
+        }
+        return result;
       };
 
       setEditData((prev) => ({
@@ -157,11 +184,11 @@ export const SubtitleEditor: React.FC = () => {
           if (scope === 'current' && i !== safeIndex) return s;
           return {
             ...s,
-            subtitle: countingReplace(s.subtitle),
+            subtitle: applyRules(s.subtitle),
             verses: s.verses.map((v) => ({
               ...v,
-              korean: countingReplace(v.korean),
-              highlightMean: countingReplace(v.highlightMean),
+              korean: applyRules(v.korean),
+              highlightMean: applyRules(v.highlightMean),
             })),
           };
         }),
@@ -173,8 +200,63 @@ export const SubtitleEditor: React.FC = () => {
       );
       setTimeout(() => setReplaceMsg(''), 3000);
     },
-    [findWord, replaceWord, safeIndex],
+    [replaceRules, safeIndex],
   );
+
+  // 치환 규칙 저장/불러오기
+  const saveRules = useCallback(async () => {
+    try {
+      const { writeStaticFile } = await import('@remotion/studio');
+      const activeRules = replaceRules.filter((r) => r.find);
+      await writeStaticFile({
+        filePath: 'replace-rules.json',
+        contents: JSON.stringify(activeRules, null, 2),
+      });
+      setReplaceMsg(`${activeRules.length}개 규칙 저장 완료`);
+      setTimeout(() => setReplaceMsg(''), 3000);
+    } catch {
+      setReplaceMsg('규칙 저장 실패');
+      setTimeout(() => setReplaceMsg(''), 3000);
+    }
+  }, [replaceRules]);
+
+  const loadRules = useCallback(() => {
+    const url = staticFile('replace-rules.json') + '?t=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((data: ReplaceRule[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setReplaceRules(data);
+          setReplaceMsg(`${data.length}개 규칙 불러옴`);
+        } else {
+          setReplaceMsg('저장된 규칙 없음');
+        }
+        setTimeout(() => setReplaceMsg(''), 3000);
+      })
+      .catch(() => {
+        setReplaceMsg('저장된 규칙 없음');
+        setTimeout(() => setReplaceMsg(''), 3000);
+      });
+  }, []);
+
+  // 초기 로드 시 저장된 규칙 불러오기
+  useEffect(() => {
+    const url = staticFile('replace-rules.json') + '?t=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((data: ReplaceRule[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setReplaceRules(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // 저장
   const [saving, setSaving] = useState(false);
@@ -325,61 +407,104 @@ export const SubtitleEditor: React.FC = () => {
           style={replaceToggleStyle}
         >
           {replaceOpen ? '▾' : '▸'} 단어 치환
-          {findWord && matchPreview.total > 0 && (
+          {matchPreview.total > 0 && (
             <span style={{ color: '#6cf', marginLeft: 6 }}>
               ({matchPreview.total})
+            </span>
+          )}
+          {replaceRules.filter((r) => r.find).length > 0 && (
+            <span style={{ color: '#999', marginLeft: 4 }}>
+              [{replaceRules.filter((r) => r.find).length}규칙]
             </span>
           )}
         </button>
         {replaceOpen && (
           <div style={{ padding: '8px 16px 10px' }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>찾을 단어</label>
-                <input
-                  value={findWord}
-                  onChange={(e) => setFindWord(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleReplace('all');
-                  }}
-                  style={inputStyle}
-                  placeholder="예: 하나님"
-                />
+            {/* 규칙 목록 */}
+            {replaceRules.map((rule, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  gap: 4,
+                  marginBottom: 4,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  {idx === 0 && (
+                    <label style={{ ...labelStyle, marginTop: 0 }}>
+                      찾을 단어
+                    </label>
+                  )}
+                  <input
+                    value={rule.find}
+                    onChange={(e) => updateRule(idx, 'find', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleReplace('all');
+                    }}
+                    style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                    placeholder="찾기"
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: '#666', padding: '6px 0' }}>
+                  →
+                </div>
+                <div style={{ flex: 1 }}>
+                  {idx === 0 && (
+                    <label style={{ ...labelStyle, marginTop: 0 }}>
+                      바꿀 단어
+                    </label>
+                  )}
+                  <input
+                    value={rule.replace}
+                    onChange={(e) => updateRule(idx, 'replace', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleReplace('all');
+                    }}
+                    style={{ ...inputStyle, fontSize: 12, padding: '5px 8px' }}
+                    placeholder="바꾸기"
+                  />
+                </div>
+                <button
+                  onClick={() => removeRule(idx)}
+                  style={ruleRemoveBtnStyle}
+                  title="규칙 삭제"
+                >
+                  ✕
+                </button>
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>바꿀 단어</label>
-                <input
-                  value={replaceWord}
-                  onChange={(e) => setReplaceWord(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleReplace('all');
-                  }}
-                  style={inputStyle}
-                  placeholder="예: 하느님"
-                />
-              </div>
-            </div>
+            ))}
+
+            {/* 규칙 추가 버튼 */}
+            <button onClick={addRule} style={ruleAddBtnStyle}>
+              + 규칙 추가
+            </button>
+
             {/* 일치 건수 미리보기 */}
-            {findWord && (
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+            {matchPreview.total > 0 && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
                 전체 {matchPreview.total}건 / 현재 장면 {matchPreview.current}건
                 일치
               </div>
             )}
+
+            {/* 치환 실행 버튼 */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
+                marginTop: 8,
                 flexWrap: 'wrap',
               }}
             >
               <button
                 onClick={() => handleReplace('all')}
-                disabled={!findWord}
+                disabled={!replaceRules.some((r) => r.find)}
                 style={{
                   ...btnBase,
-                  background: findWord
+                  background: replaceRules.some((r) => r.find)
                     ? 'rgba(100,160,250,0.9)'
                     : 'rgba(100,160,250,0.3)',
                   color: '#fff',
@@ -391,10 +516,10 @@ export const SubtitleEditor: React.FC = () => {
               </button>
               <button
                 onClick={() => handleReplace('current')}
-                disabled={!findWord}
+                disabled={!replaceRules.some((r) => r.find)}
                 style={{
                   ...btnBase,
-                  background: findWord
+                  background: replaceRules.some((r) => r.find)
                     ? 'rgba(100,200,160,0.9)'
                     : 'rgba(100,200,160,0.3)',
                   color: '#fff',
@@ -404,17 +529,40 @@ export const SubtitleEditor: React.FC = () => {
               >
                 현재 장면만
               </button>
-              {replaceMsg && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: replaceMsg.includes('없음') ? '#f90' : '#6f6',
-                  }}
-                >
-                  {replaceMsg}
-                </span>
-              )}
             </div>
+
+            {/* 규칙 저장/불러오기 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                marginTop: 8,
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                paddingTop: 8,
+              }}
+            >
+              <button onClick={saveRules} style={ruleIoBtnStyle}>
+                규칙 저장
+              </button>
+              <button onClick={loadRules} style={ruleIoBtnStyle}>
+                규칙 불러오기
+              </button>
+            </div>
+
+            {/* 메시지 */}
+            {replaceMsg && (
+              <div
+                style={{
+                  fontSize: 11,
+                  marginTop: 6,
+                  color: replaceMsg.includes('없음') || replaceMsg.includes('실패')
+                    ? '#f90'
+                    : '#6f6',
+                }}
+              >
+                {replaceMsg}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -778,4 +926,40 @@ const replaceToggleStyle: React.CSSProperties = {
   fontSize: 12,
   cursor: 'pointer',
   textAlign: 'left',
+};
+
+const ruleRemoveBtnStyle: React.CSSProperties = {
+  background: 'rgba(255,80,80,0.15)',
+  border: '1px solid rgba(255,80,80,0.3)',
+  color: '#f66',
+  borderRadius: 4,
+  width: 26,
+  height: 26,
+  cursor: 'pointer',
+  fontSize: 11,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
+
+const ruleAddBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: '1px dashed rgba(255,255,255,0.15)',
+  color: '#888',
+  borderRadius: 4,
+  padding: '4px 10px',
+  cursor: 'pointer',
+  fontSize: 11,
+  marginTop: 4,
+};
+
+const ruleIoBtnStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  color: '#aaa',
+  borderRadius: 4,
+  padding: '5px 12px',
+  cursor: 'pointer',
+  fontSize: 11,
 };

@@ -1,8 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { getRemotionEnvironment } from 'remotion';
+import React, { useState, useCallback, useEffect } from 'react';
+import { getRemotionEnvironment, staticFile } from 'remotion';
 import { parseVerseRange, fetchBibleVerses } from '../data/bibleApi';
 import { generateScenes } from '../data/sceneGenerator';
 import { setDynamicScenes } from '../data/dynamicScenes';
+import { translateHebrewBatch, API_PRESETS } from '../data/hebrewTranslator';
+import type { TranslationConfig } from '../data/hebrewTranslator';
 import { COLOR } from '../styles/subtitle';
 import { FPS } from '../styles/subtitle';
 
@@ -23,9 +25,121 @@ export const BibleVerseLoader: React.FC = () => {
     versesPerScene: number;
   } | null>(null);
 
+  // 번역 모드: 'krv' = 개역한글 (기존), 'ai' = AI 직역
+  const [translationMode, setTranslationMode] = useState<'krv' | 'ai'>('krv');
+  const [apiKey, setApiKey] = useState('');
+  const [apiPreset, setApiPreset] = useState(0); // API_PRESETS index
+  const [showApiConfig, setShowApiConfig] = useState(false);
+
+  // 저장된 구절 범위 목록
+  type SavedRange = { range: string; label: string; date: string };
+  const [savedRanges, setSavedRanges] = useState<SavedRange[]>([]);
+
+  // 초기 로드: 저장된 구절 범위 + API 설정 불러오기
+  useEffect(() => {
+    const url = staticFile('saved-verse-ranges.json') + '?t=' + Date.now();
+    fetch(url, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((data: SavedRange[]) => {
+        if (Array.isArray(data)) setSavedRanges(data);
+      })
+      .catch(() => {});
+
+    // API 키 불러오기
+    const apiUrl = staticFile('ai-config.json') + '?t=' + Date.now();
+    fetch(apiUrl, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((data: { apiKey?: string; preset?: number; mode?: string }) => {
+        if (data.apiKey) setApiKey(data.apiKey);
+        if (typeof data.preset === 'number') setApiPreset(data.preset);
+        if (data.mode === 'ai') setTranslationMode('ai');
+      })
+      .catch(() => {});
+  }, []);
+
+  // API 설정 저장
+  const saveApiConfig = useCallback(async () => {
+    try {
+      const { writeStaticFile } = await import('@remotion/studio');
+      await writeStaticFile({
+        filePath: 'ai-config.json',
+        contents: JSON.stringify({
+          apiKey,
+          preset: apiPreset,
+          mode: translationMode,
+        }),
+      });
+      setStatus('API 설정 저장 완료');
+      setTimeout(() => setStatus(''), 2000);
+    } catch {
+      setStatus('API 설정 저장 실패');
+      setTimeout(() => setStatus(''), 2000);
+    }
+  }, [apiKey, apiPreset, translationMode]);
+
+  // 구절 범위 저장
+  const handleSaveRange = useCallback(async () => {
+    if (!verseRange.trim()) return;
+    try {
+      const range = parseVerseRange(verseRange);
+      const label = `${range.bookName} ${range.startChapter}:${range.startVerse} – ${range.endChapter}:${range.endVerse}`;
+      const newEntry: SavedRange = {
+        range: verseRange.trim(),
+        label,
+        date: new Date().toISOString().slice(0, 10),
+      };
+      // 중복 제거 후 앞에 추가
+      const updated = [
+        newEntry,
+        ...savedRanges.filter((r) => r.range !== verseRange.trim()),
+      ];
+      setSavedRanges(updated);
+
+      const { writeStaticFile } = await import('@remotion/studio');
+      await writeStaticFile({
+        filePath: 'saved-verse-ranges.json',
+        contents: JSON.stringify(updated, null, 2),
+      });
+      setStatus('구절 범위 저장 완료');
+      setTimeout(() => setStatus(''), 2000);
+    } catch (err) {
+      setStatus(`저장 오류: ${(err as Error).message}`);
+    }
+  }, [verseRange, savedRanges]);
+
+  // 저장된 구절 범위 삭제
+  const handleDeleteRange = useCallback(
+    async (idx: number) => {
+      const updated = savedRanges.filter((_, i) => i !== idx);
+      setSavedRanges(updated);
+      try {
+        const { writeStaticFile } = await import('@remotion/studio');
+        await writeStaticFile({
+          filePath: 'saved-verse-ranges.json',
+          contents: JSON.stringify(updated, null, 2),
+        });
+      } catch {
+        // 무시
+      }
+    },
+    [savedRanges],
+  );
+
   const handleLoad = useCallback(async () => {
     if (!verseRange.trim()) {
       setStatus('구절 범위를 입력하세요');
+      return;
+    }
+
+    if (translationMode === 'ai' && !apiKey.trim()) {
+      setStatus('AI 번역 모드: API 키를 입력하세요');
+      setShowApiConfig(true);
       return;
     }
 
@@ -37,14 +151,46 @@ export const BibleVerseLoader: React.FC = () => {
       const range = parseVerseRange(verseRange);
       setStatus(`${range.bookName} ${range.startChapter}:${range.startVerse} – ${range.endChapter}:${range.endVerse} 불러오는 중...`);
 
-      const rawVerses = await fetchBibleVerses(range);
+      // 히브리어 원문 fetch (AI 모드면 KRV 스킵)
+      const fetchMode = translationMode === 'ai' ? 'hebrew-only' : 'krv';
+      const rawVerses = await fetchBibleVerses(range, fetchMode);
       if (rawVerses.length === 0) {
         setStatus('해당 범위에 구절이 없습니다.');
         setLoading(false);
         return;
       }
 
-      setStatus(`${rawVerses.length}절 로드 완료. 장면 생성 중...`);
+      // AI 번역 모드: 히브리어 → 한국어 직역
+      if (translationMode === 'ai') {
+        setStatus(`${rawVerses.length}절 로드 완료. AI 번역 중...`);
+
+        const preset = API_PRESETS[apiPreset] || API_PRESETS[0];
+        const config: TranslationConfig = {
+          apiKey: apiKey.trim(),
+          apiUrl: preset.apiUrl,
+          model: preset.model,
+        };
+
+        const versesForTranslation = rawVerses.map((rv) => ({
+          ref: `${rv.chapter}:${rv.verse}`,
+          hebrew: rv.hebrew,
+        }));
+
+        const translations = await translateHebrewBatch(
+          versesForTranslation,
+          config,
+          (done, total) => {
+            setStatus(`AI 번역 중... ${done}/${total}절`);
+          },
+        );
+
+        // 번역 결과를 rawVerses에 적용
+        for (let i = 0; i < rawVerses.length; i++) {
+          rawVerses[i].korean = translations[i] || rawVerses[i].korean;
+        }
+      }
+
+      setStatus(`${rawVerses.length}절 ${translationMode === 'ai' ? '번역' : '로드'} 완료. 장면 생성 중...`);
 
       const rangeLabel = `${range.bookName} ${range.startChapter}:${range.startVerse} – ${range.endChapter}:${range.endVerse}`;
       const generated = generateScenes(rawVerses, range.bookName, rangeLabel);
@@ -80,13 +226,14 @@ export const BibleVerseLoader: React.FC = () => {
 
       const mins = Math.floor(generated.totalDurationSeconds / 60);
       const secs = Math.round(generated.totalDurationSeconds % 60);
-      setStatus(`완료! ${generated.scenes.length}개 장면, ${mins}분 ${secs}초`);
+      const modeLabel = translationMode === 'ai' ? '(AI 직역)' : '(개역한글)';
+      setStatus(`완료! ${generated.scenes.length}개 장면, ${mins}분 ${secs}초 ${modeLabel}`);
     } catch (err) {
       setStatus(`오류: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
-  }, [verseRange]);
+  }, [verseRange, translationMode, apiKey, apiPreset]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -144,14 +291,120 @@ export const BibleVerseLoader: React.FC = () => {
         </div>
       </div>
 
-      {/* 불러오기 버튼 */}
-      <div style={{ padding: '0 16px 12px' }}>
+      {/* 번역 모드 선택 */}
+      <div style={sectionStyle}>
+        <label style={labelStyle}>번역 소스</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => setTranslationMode('krv')}
+            style={{
+              ...modeBtnStyle,
+              background:
+                translationMode === 'krv'
+                  ? 'rgba(212,175,55,0.3)'
+                  : 'rgba(255,255,255,0.04)',
+              borderColor:
+                translationMode === 'krv'
+                  ? 'rgba(212,175,55,0.6)'
+                  : 'rgba(255,255,255,0.1)',
+              color: translationMode === 'krv' ? COLOR.hebrew : '#888',
+            }}
+          >
+            개역한글 (KRV)
+          </button>
+          <button
+            onClick={() => {
+              setTranslationMode('ai');
+              if (!apiKey) setShowApiConfig(true);
+            }}
+            style={{
+              ...modeBtnStyle,
+              background:
+                translationMode === 'ai'
+                  ? 'rgba(100,160,250,0.25)'
+                  : 'rgba(255,255,255,0.04)',
+              borderColor:
+                translationMode === 'ai'
+                  ? 'rgba(100,160,250,0.6)'
+                  : 'rgba(255,255,255,0.1)',
+              color: translationMode === 'ai' ? '#6af' : '#888',
+            }}
+          >
+            AI 직역
+          </button>
+        </div>
+        {translationMode === 'ai' && (
+          <div style={{ fontSize: 11, color: '#6af', marginTop: 4 }}>
+            히브리어 원문을 AI가 직접 한국어로 번역합니다
+          </div>
+        )}
+      </div>
+
+      {/* AI API 설정 (AI 모드 선택 시) */}
+      {translationMode === 'ai' && (
+        <div style={apiSectionStyle}>
+          <button
+            onClick={() => setShowApiConfig((v) => !v)}
+            style={{
+              ...replaceToggleStyle,
+              color: apiKey ? '#6f6' : '#f90',
+            }}
+          >
+            {showApiConfig ? '▾' : '▸'} API 설정
+            {apiKey ? ' (설정됨)' : ' (필요)'}
+          </button>
+          {showApiConfig && (
+            <div style={{ padding: '8px 16px 10px' }}>
+              <label style={{ ...labelStyle, fontSize: 11 }}>API 프리셋</label>
+              <select
+                value={apiPreset}
+                onChange={(e) => setApiPreset(Number(e.target.value))}
+                style={{
+                  ...selectStyle,
+                  marginBottom: 8,
+                }}
+              >
+                {API_PRESETS.map((p, i) => (
+                  <option key={i} value={i}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+
+              <label style={{ ...labelStyle, fontSize: 11 }}>API 키</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                style={{ ...inputStyle, fontSize: 12, padding: '7px 10px' }}
+                placeholder="sk-... 또는 API 키 입력"
+              />
+
+              <button
+                onClick={saveApiConfig}
+                style={{
+                  ...btnBase,
+                  marginTop: 8,
+                  fontSize: 11,
+                  padding: '5px 12px',
+                  background: 'rgba(100,160,250,0.3)',
+                }}
+              >
+                API 설정 저장
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 불러오기 + 저장 버튼 */}
+      <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8 }}>
         <button
           onClick={handleLoad}
           disabled={loading}
           style={{
             ...btnBase,
-            width: '100%',
+            flex: 1,
             background: loading ? '#555' : 'rgba(212,175,55,0.9)',
             color: '#000',
             fontWeight: 700,
@@ -160,6 +413,20 @@ export const BibleVerseLoader: React.FC = () => {
           }}
         >
           {loading ? '불러오는 중...' : '불러오기 (Enter)'}
+        </button>
+        <button
+          onClick={handleSaveRange}
+          disabled={loading || !verseRange.trim()}
+          style={{
+            ...btnBase,
+            background: 'rgba(100,180,100,0.85)',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 13,
+            padding: '10px 16px',
+          }}
+        >
+          저장
         </button>
       </div>
 
@@ -202,15 +469,50 @@ export const BibleVerseLoader: React.FC = () => {
         </div>
       )}
 
+      {/* 저장된 구절 목록 */}
+      {savedRanges.length > 0 && (
+        <div style={savedSectionStyle}>
+          <div style={{ fontSize: 12, color: '#999', fontWeight: 600, marginBottom: 8 }}>
+            저장된 구절 ({savedRanges.length})
+          </div>
+          {savedRanges.map((item, idx) => (
+            <div key={idx} style={savedRowStyle}>
+              <button
+                onClick={() => setVerseRange(item.range)}
+                style={savedRangeBtnStyle}
+                title={item.range}
+              >
+                <span style={{ color: COLOR.hebrew, fontWeight: 600 }}>
+                  {item.label}
+                </span>
+                <span style={{ fontSize: 10, color: '#666' }}>{item.date}</span>
+              </button>
+              <button
+                onClick={() => handleDeleteRange(idx)}
+                style={savedDeleteBtnStyle}
+                title="삭제"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 안내 */}
       <div style={helpStyle}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>지원 책 이름:</div>
         <div>Genesis(창세기), Exodus(출애굽기), Psalms(시편), Isaiah(이사야), Proverbs(잠언) 등</div>
         <div style={{ marginTop: 8, fontWeight: 600 }}>사용법:</div>
-        <div>1. 구절 범위 입력</div>
-        <div>2. "불러오기" 클릭 (또는 Enter)</div>
-        <div>3. 왼쪽에서 BibleVerseSubtitles 선택</div>
-        <div>4. 미리보기에서 자막 확인</div>
+        <div>1. 번역 소스 선택 (개역한글 또는 AI 직역)</div>
+        <div>2. AI 직역 선택 시 API 키 설정</div>
+        <div>3. 구절 범위 입력</div>
+        <div>4. "불러오기" 클릭 (또는 Enter)</div>
+        <div>5. 왼쪽에서 BibleVerseSubtitles 선택</div>
+        <div>6. 미리보기에서 자막 확인</div>
+        <div style={{ marginTop: 8, fontWeight: 600 }}>번역 모드:</div>
+        <div>• 개역한글: 기존 한글 성경(KRV) 사용</div>
+        <div>• AI 직역: 히브리어 원문을 AI가 직접 번역</div>
       </div>
     </div>
   );
@@ -330,6 +632,89 @@ const resultValue: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: '#ddd',
+};
+
+const savedSectionStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  borderTop: '1px solid rgba(255,255,255,0.06)',
+  borderBottom: '1px solid rgba(255,255,255,0.06)',
+};
+
+const savedRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 4,
+  marginBottom: 4,
+  alignItems: 'center',
+};
+
+const savedRangeBtnStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '6px 10px',
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 4,
+  color: '#ccc',
+  fontSize: 12,
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const savedDeleteBtnStyle: React.CSSProperties = {
+  background: 'rgba(255,80,80,0.1)',
+  border: '1px solid rgba(255,80,80,0.2)',
+  color: '#f66',
+  borderRadius: 4,
+  width: 24,
+  height: 24,
+  cursor: 'pointer',
+  fontSize: 10,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
+
+const modeBtnStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '8px 12px',
+  border: '1px solid',
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  textAlign: 'center',
+  background: 'rgba(255,255,255,0.04)',
+};
+
+const apiSectionStyle: React.CSSProperties = {
+  borderBottom: '1px solid rgba(255,255,255,0.06)',
+};
+
+const replaceToggleStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 16px',
+  background: 'none',
+  border: 'none',
+  color: '#aaa',
+  fontSize: 12,
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const selectStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '7px 10px',
+  background: '#2a2a30',
+  border: '1px solid rgba(255,255,255,0.15)',
+  borderRadius: 4,
+  color: '#eee',
+  fontSize: 12,
+  fontFamily: 'inherit',
+  outline: 'none',
+  boxSizing: 'border-box',
 };
 
 const helpStyle: React.CSSProperties = {

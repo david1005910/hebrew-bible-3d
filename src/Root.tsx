@@ -8,6 +8,7 @@ import { TOTAL_DURATION_FRAMES, FPS, SCENE_DURATION_FRAMES } from './styles/subt
 import { mergeSubtitles, type SubtitlesData } from './data/useSubtitles';
 import { parseVerseRange, fetchBibleVerses } from './data/bibleApi';
 import { generateScenes } from './data/sceneGenerator';
+import type { Scene } from './data/scenes';
 import type { CalculateMetadataFunction } from 'remotion';
 
 // ── Load Google Fonts at module level ───────────────────────────
@@ -62,6 +63,19 @@ async function calculateBibleVerseMetadata({
   compositionId: string;
   defaultProps: Record<string, unknown>;
 }) {
+  // BibleVerseLoader에서 이미 scenes를 생성하여 props에 전달한 경우
+  // 중복 API 호출 없이 바로 사용
+  const existingScenes = props.subtitleScenes as Scene[] | undefined;
+  const existingDuration = props.sceneDurationFrames as number | undefined;
+
+  if (existingScenes && existingScenes.length > 0 && existingDuration) {
+    return {
+      durationInFrames: existingDuration * existingScenes.length,
+      props: { ...props },
+    };
+  }
+
+  // verseRange props로 직접 입력한 경우 API에서 fetch
   const verseRange = (props.verseRange as string) || '';
 
   if (!verseRange) {
