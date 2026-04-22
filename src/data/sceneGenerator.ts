@@ -138,6 +138,74 @@ export function transliterateKorean(hebrew: string): string {
   return result;
 }
 
+// ── 히브리어-한국어 사전 (니쿠드 제거 후 매칭) ──────────────
+function stripNikkud(text: string): string {
+  return text.replace(/[\u0591-\u05C7]/g, '').replace(/\u05BE/g, '');
+}
+
+// 접두사 제거 후 후보 목록 반환 (ו ה ב ל מ כ ש 등)
+function rootCandidates(word: string): string[] {
+  const results = [word];
+  const prefixes = ['ו', 'ה', 'ב', 'ל', 'מ', 'כ', 'ש'];
+  let cur = word;
+  for (let j = 0; j < 3 && cur.length > 2; j++) {
+    if (prefixes.includes(cur[0])) {
+      cur = cur.substring(1);
+      results.push(cur);
+    } else break;
+  }
+  return results;
+}
+
+const HEB_KR: Record<string, string> = {
+  // 동사
+  'ברא': '창조하다', 'עשה': '만들다', 'אמר': '말씀하다', 'ראה': '보다',
+  'קרא': '부르다', 'ברך': '축복하다', 'שבת': '안식하다', 'קדש': '거룩하게 하다',
+  'בדל': '나누다', 'יצר': '빚다/짓다', 'נפח': '불어넣다', 'שים': '두다',
+  'צוה': '명하다', 'אכל': '먹다', 'מות': '죽다', 'ידע': '알다',
+  'שמר': '지키다', 'עבד': '경작하다', 'הלך': '가다', 'שמע': '듣다',
+  'נתן': '주다', 'לקח': '취하다', 'בנה': '짓다', 'נפל': '떨어지다',
+  'ישן': '자다', 'סגר': '닫다', 'עזב': '떠나다', 'דבק': '합하다',
+  'ארר': '저주하다', 'שלח': '보내다', 'גרש': '쫓아내다', 'שכן': '거하다',
+  'חטא': '범하다', 'רבה': '번성하다', 'מלא': '채우다', 'רדה': '다스리다',
+  'כבש': '정복하다', 'רמש': '기다', 'שרץ': '번성하다',
+  'יצו': '명하셨다', 'תאכל': '먹어라',
+  // 명사
+  'אלהים': '하나님', 'יהוה': '여호와', 'אדם': '사람/아담',
+  'אדמה': '땅/흙', 'שמים': '하늘', 'ארץ': '땅', 'מים': '물',
+  'אור': '빛', 'חשך': '어둠', 'יום': '날/낮', 'לילה': '밤',
+  'רוח': '영/바람', 'נפש': '생명/혼', 'חיה': '생물', 'בהמה': '가축',
+  'עץ': '나무', 'פרי': '열매', 'זרע': '씨', 'דשא': '풀/싹나다',
+  'עשב': '채소', 'גן': '동산', 'עדן': '에덴', 'נהר': '강',
+  'רקיע': '궁창', 'מאור': '빛/광명체', 'כוכב': '별', 'תנין': '바다생물',
+  'עוף': '새', 'דג': '물고기', 'נחש': '뱀', 'כרוב': '그룹',
+  'צלם': '형상', 'דמות': '모양', 'צלע': '갈빗대', 'בשר': '살/육체',
+  'עצם': '뼈', 'דם': '피', 'לב': '마음', 'עין': '눈',
+  'איש': '남자', 'אשה': '여자', 'זכר': '남성', 'נקבה': '여성',
+  'אב': '아버지', 'אם': '어머니', 'בן': '아들', 'בת': '딸',
+  'תולדות': '세대/족보', 'ברית': '언약', 'חסד': '인자/은혜',
+  'מלאכה': '일/작업', 'מנוחה': '안식/쉼',
+  'ערב': '저녁', 'בקר': '아침', 'שמש': '해', 'ירח': '달',
+  'טוב': '좋다', 'רע': '악/나쁜', 'חי': '살아있는', 'גדול': '큰',
+  'קטן': '작은', 'מאד': '매우', 'אחד': '하나', 'שני': '둘째',
+  'תהו': '혼돈', 'בהו': '공허', 'תהום': '깊음',
+  'יבשה': '마른 땅', 'כנף': '날개',
+  // 자주 등장하는 조합형
+  'האדמה': '그 땅', 'השמים': '그 하늘', 'הארץ': '그 땅',
+  'המים': '그 물', 'היבשה': '마른 땅', 'הגדלים': '큰 것들',
+  'הכוכבים': '별들', 'התנינם': '바다생물들',
+  'בצלמנו': '우리 형상으로', 'למינה': '그 종류대로',
+  'מהאדמה': '땅으로부터', 'האדם': '그 사람',
+};
+
+function lookupKorean(highlight: string): string | undefined {
+  const bare = stripNikkud(highlight);
+  for (const candidate of rootCandidates(bare)) {
+    if (HEB_KR[candidate]) return HEB_KR[candidate];
+  }
+  return undefined;
+}
+
 export interface GeneratedResult {
   scenes: Scene[];
   sceneDurationSeconds: number;
@@ -161,13 +229,13 @@ export function generateScenes(
   // Determine verses per scene to fit within max total
   let versesPerScene = 3;
   let numVerseScenes = Math.ceil(rawVerses.length / versesPerScene);
-  let numScenes = numVerseScenes + 2; // +prologue +epilogue
+  let numScenes = numVerseScenes;
   let sceneDuration = maxTotalSeconds / numScenes;
 
   while (sceneDuration < MIN_SCENE_SECONDS && versesPerScene < 15) {
     versesPerScene++;
     numVerseScenes = Math.ceil(rawVerses.length / versesPerScene);
-    numScenes = numVerseScenes + 2;
+    numScenes = numVerseScenes;
     sceneDuration = maxTotalSeconds / numScenes;
   }
 
@@ -175,26 +243,7 @@ export function generateScenes(
 
   const scenes: Scene[] = [];
 
-  // 1. Prologue (rendered as DayScene — not the hardcoded PrologueScene)
-  const firstVerse = rawVerses[0];
-  const firstWords = firstVerse.hebrew.split(/\s+/).slice(0, 3).join(' ');
-  scenes.push({
-    id: 'dynamic-prologue',
-    title: firstWords,
-    titleKr: bookName,
-    subtitle: rangeLabel,
-    chapter: '序 · Prologue',
-    dayLabel: null,
-    accent: ACCENT_COLORS[0],
-    verses: [{
-      hebrew: firstVerse.hebrew,
-      translit: transliterate(firstVerse.hebrew),
-      korean: firstVerse.korean,
-    }],
-    verseScene: true,
-  });
-
-  // 2. Verse scenes (grouped)
+  // Verse scenes (grouped)
   for (let i = 0; i < rawVerses.length; i += versesPerScene) {
     const group = rawVerses.slice(i, i + versesPerScene);
     const sceneIndex = Math.floor(i / versesPerScene);
@@ -212,7 +261,13 @@ export function generateScenes(
         translit: transliterate(rv.hebrew),
         korean: rv.korean,
         highlight,
-        highlightMean: highlight ? transliterateKorean(highlight) : undefined,
+        highlightMean: highlight
+          ? (() => {
+              const kr = transliterateKorean(highlight);
+              const mean = lookupKorean(highlight);
+              return mean ? `${kr} · ${mean}` : kr;
+            })()
+          : undefined,
       };
     });
 
@@ -228,28 +283,6 @@ export function generateScenes(
       verseScene: true,
     });
   }
-
-  // 3. Epilogue (rendered as DayScene — not the hardcoded ClosingScene)
-  const lastVerse = rawVerses[rawVerses.length - 1];
-  const lastHighlight = detectHighlightWord(lastVerse.hebrew);
-  scenes.push({
-    id: 'dynamic-epilogue',
-    title: lastVerse.hebrew.split(/\s+/).slice(0, 3).join(' '),
-    titleKr: '마침',
-    subtitle: `${bookName} — 마침`,
-    chapter: `${bookName} · 맺음`,
-    dayLabel: null,
-    accent: ACCENT_COLORS[7 % ACCENT_COLORS.length],
-    verses: [{
-      ref: `${lastVerse.chapter}:${lastVerse.verse}`,
-      hebrew: lastVerse.hebrew,
-      translit: transliterate(lastVerse.hebrew),
-      korean: lastVerse.korean,
-      highlight: lastHighlight,
-      highlightMean: lastHighlight ? transliterate(lastHighlight) : undefined,
-    }],
-    verseScene: true,
-  });
 
   return {
     scenes,
