@@ -1,0 +1,158 @@
+{
+  "scenes": [
+    {
+      "id": "prologue",
+      "subtitle": "창세기 1:1 – 2:3",
+      "verses": [
+        {
+          "korean": "처음으로"
+        }
+      ]
+    },
+    {
+      "id": "day1",
+      "subtitle": "첫째 날 · Day One",
+      "verses": [
+        {
+          "korean": "처음으로, 엘로힘이 하늘들과 땅을 창조하셨다",
+          "highlightMean": "바라 · 창조하다"
+        },
+        {
+          "korean": "땅은 혼돈(토후)과 공허(보후)였고, 어둠이 깊음의 표면 위에 있었다",
+          "highlightMean": "토후 바보후 · 혼돈과 공허"
+        },
+        {
+          "korean": "하나님이 말씀하시되 \"빛이 있으라\" 하시니 빛이 있었다",
+          "highlightMean": "예히 오르 · 빛이 있으라"
+        }
+      ]
+    },
+    {
+      "id": "day2",
+      "subtitle": "둘째 날 · Day Two",
+      "verses": [
+        {
+          "korean": "하나님이 말씀하시되 \"물들 가운데 궁창이 있으라\"",
+          "highlightMean": "라키아 · 궁창/펼쳐진 공간"
+        },
+        {
+          "korean": "궁창 아래의 물과 궁창 위의 물을 나누셨다",
+          "highlightMean": "바야브델 · 그리고 나누셨다"
+        },
+        {
+          "korean": "하나님이 궁창을 \"하늘(샤마임)\"이라 부르셨다",
+          "highlightMean": "샤마임 · 하늘들"
+        }
+      ]
+    },
+    {
+      "id": "day3",
+      "subtitle": "셋째 날 · Day Three",
+      "verses": [
+        {
+          "korean": "하늘 아래의 물들은 한 곳으로 모이고 마른 땅이 드러나라",
+          "highlightMean": "하야바샤 · 마른 땅"
+        },
+        {
+          "korean": "땅은 풀과, 씨 맺는 채소와, 열매 맺는 나무를 내라",
+          "highlightMean": "데셰 · 푸른 싹"
+        },
+        {
+          "korean": "땅이 풀을 내었고… 하나님이 보시기에 좋았다",
+          "highlightMean": "키 토브 · 좋았다"
+        }
+      ]
+    },
+    {
+      "id": "day4",
+      "subtitle": "넷째 날 · Day Four",
+      "verses": [
+        {
+          "korean": "하늘의 궁창에 빛들이 있어 낮과 밤을 나누게 하라",
+          "highlightMean": "메오로트 · 빛들(광명체)"
+        },
+        {
+          "korean": "하나님이 두 큰 빛을 만드셨다 — 해와 달",
+          "highlightMean": "하그돌림 · 큰 것들"
+        },
+        {
+          "korean": "그리고 별들도 (만드셨다)",
+          "highlightMean": "하코카빔 · 별들"
+        }
+      ]
+    },
+    {
+      "id": "day5",
+      "subtitle": "다섯째 날 · Day Five",
+      "verses": [
+        {
+          "korean": "물들은 생명있는 것을 번성하게 하고, 새는 땅 위를 날아라",
+          "highlightMean": "네페쉬 하야 · 살아있는 혼"
+        },
+        {
+          "korean": "하나님이 큰 바다 짐승들을 창조하셨다",
+          "highlightMean": "하타니님 · 큰 바다생물"
+        },
+        {
+          "korean": "하나님이 그들에게 복을 주시며 \"생육하고 번성하라\" 하셨다",
+          "highlightMean": "프루 우르부 · 생육하고 번성하라"
+        }
+      ]
+    },
+    {
+      "id": "day6",
+      "subtitle": "여섯째 날 · Day Six",
+      "verses": [
+        {
+          "korean": "땅은 생물을 그 종류대로 내라 — 가축과 기는 것과 땅의 짐승",
+          "highlightMean": "레미나 · 그 종류대로"
+        },
+        {
+          "korean": "우리의 형상을 따라 우리의 모양대로 사람(아담)을 만들자",
+          "highlightMean": "베찰메누 · 우리의 형상으로"
+        },
+        {
+          "korean": "하나님이 사람을 자기 형상대로 창조하시되, 남자와 여자를 창조하셨다",
+          "highlightMean": "자카르 우네케바 · 남자와 여자"
+        }
+      ]
+    },
+    {
+      "id": "day7",
+      "subtitle": "일곱째 날 · Day Seven",
+      "verses": [
+        {
+          "korean": "하늘과 땅과 그 모든 군상이 완성되었다",
+          "highlightMean": "바예쿨루 · 완성되었다"
+        },
+        {
+          "korean": "일곱째 날에 그의 모든 일에서 그치셨다(안식하셨다)",
+          "highlightMean": "바이쉬보트 · 안식하셨다 (샤바트의 어근)"
+        },
+        {
+          "korean": "하나님이 일곱째 날에 복을 주시고 그 날을 거룩하게 하셨다",
+          "highlightMean": "바예카데쉬 · 거룩하게 하셨다"
+        }
+      ]
+    },
+    {
+      "id": "structure",
+      "subtitle": "창조의 구조 · The Structure",
+      "verses": [
+        {
+          "korean": "첫 3일은 공간을 형성하고, 다음 3일은 그 공간을 채운다"
+        }
+      ]
+    },
+    {
+      "id": "epilogue",
+      "subtitle": "매우 좋았다 · Very Good",
+      "verses": [
+        {
+          "korean": "하나님이 지으신 그 모든 것을 보시니 보시기에 심히 좋았다",
+          "highlightMean": "토브 메오드 · 매우 좋았다"
+        }
+      ]
+    }
+  ]
+}

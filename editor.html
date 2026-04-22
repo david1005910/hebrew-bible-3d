@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>창세기 자막 에디터</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --border: #333;
+    --text: #e8e6e0;
+    --muted: #888;
+    --gold: #d4af37;
+    --accent: #4a9eff;
+    --success: #4caf50;
+    --danger: #f44336;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Serif KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 {
+    font-size: 20px;
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  header .actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .status {
+    font-size: 13px;
+    color: var(--muted);
+    padding: 4px 10px;
+  }
+
+  .status.saved { color: var(--success); }
+  .status.error { color: var(--danger); }
+
+  button {
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover { border-color: var(--gold); color: var(--gold); }
+
+  button.primary {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold);
+    font-weight: 600;
+  }
+
+  button.primary:hover { background: #c9a030; }
+
+  button.download {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  button.download:hover { background: #3a87dd; }
+
+  main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+  .scene-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .scene-header {
+    padding: 14px 20px;
+    background: rgba(212, 175, 55, 0.08);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .scene-header:hover { background: rgba(212, 175, 55, 0.14); }
+
+  .scene-header .toggle {
+    font-size: 12px;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+
+  .scene-header .toggle.open { transform: rotate(90deg); }
+
+  .scene-header .scene-id {
+    font-size: 12px;
+    color: var(--gold);
+    background: rgba(212, 175, 55, 0.15);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+  }
+
+  .scene-header .scene-title {
+    font-size: 16px;
+    flex: 1;
+  }
+
+  .scene-body { padding: 16px 20px; }
+
+  .field-group {
+    margin-bottom: 16px;
+  }
+
+  .field-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .field-group input,
+  .field-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .field-group input:focus,
+  .field-group textarea:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
+  }
+
+  .verse-block {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .verse-block .verse-ref {
+    font-size: 11px;
+    color: var(--gold);
+    margin-bottom: 8px;
+    font-family: monospace;
+  }
+
+  .verse-block .hebrew-preview {
+    font-size: 18px;
+    color: var(--gold);
+    direction: rtl;
+    text-align: right;
+    font-family: 'Frank Ruhl Libre', 'Noto Serif Hebrew', serif;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+    opacity: 0.7;
+  }
+
+  .verse-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .verse-fields.single { grid-template-columns: 1fr; }
+
+  .help-text {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  @media (max-width: 768px) {
+    .verse-fields { grid-template-columns: 1fr; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;700&family=Noto+Serif+Hebrew:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header>
+  <h1>בְּרֵאשִׁית 자막 에디터</h1>
+  <div class="actions">
+    <span class="status" id="status"></span>
+    <button class="download" onclick="downloadJSON()">JSON 다운로드</button>
+    <button class="primary" onclick="saveToServer()">서버에 저장</button>
+  </div>
+</header>
+
+<main id="app">
+  <div class="help-text">자막 데이터를 불러오는 중...</div>
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let subtitlesData = null;
+
+// Hebrew data (read-only, for reference display)
+const HEBREW_DATA = [
+  { id: 'prologue', title: 'בְּרֵאשִׁית', titleKr: '베레쉬트', verses: [{ hebrew: 'בְּרֵאשִׁית' }] },
+  { id: 'day1', title: 'יוֹם אֶחָד', titleKr: '욤 에하드', verses: [
+    { ref: '1:1', hebrew: 'בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ', highlight: 'בָּרָא' },
+    { ref: '1:2', hebrew: 'וְהָאָרֶץ הָיְתָה תֹהוּ וָבֹהוּ וְחֹשֶׁךְ עַל־פְּנֵי תְהוֹם', highlight: 'תֹהוּ וָבֹהוּ' },
+    { ref: '1:3', hebrew: 'וַיֹּאמֶר אֱלֹהִים יְהִי אוֹר וַיְהִי־אוֹר', highlight: 'יְהִי אוֹר' },
+  ]},
+  { id: 'day2', title: 'יוֹם שֵׁנִי', titleKr: '욤 셰니', verses: [
+    { ref: '1:6', hebrew: 'וַיֹּאמֶר אֱלֹהִים יְהִי רָקִיעַ בְּתוֹךְ הַמָּיִם', highlight: 'רָקִיעַ' },
+    { ref: '1:7', hebrew: 'וַיַּבְדֵּל בֵּין הַמַּיִם אֲשֶׁר מִתַּחַת לָרָקִיעַ', highlight: 'וַיַּבְדֵּל' },
+    { ref: '1:8', hebrew: 'וַיִּקְרָא אֱלֹהִים לָרָקִיעַ שָׁמָיִם', highlight: 'שָׁמָיִם' },
+  ]},
+  { id: 'day3', title: 'יוֹם שְׁלִישִׁי', titleKr: '욤 쉘리쉬', verses: [
+    { ref: '1:9', hebrew: 'יִקָּווּ הַמַּיִם מִתַּחַת הַשָּׁמַיִם אֶל־מָקוֹם אֶחָד', highlight: 'הַיַּבָּשָׁה' },
+    { ref: '1:11', hebrew: 'תַּדְשֵׁא הָאָרֶץ דֶּשֶׁא עֵשֶׂב מַזְרִיעַ זֶרַע עֵץ פְּרִי', highlight: 'דֶּשֶׁא' },
+    { ref: '1:12', hebrew: 'וַתּוֹצֵא הָאָרֶץ דֶּשֶׁא ... וַיַּרְא אֱלֹהִים כִּי־טוֹב', highlight: 'כִּי־טוֹב' },
+  ]},
+  { id: 'day4', title: 'יוֹם רְבִיעִי', titleKr: '욤 레비이', verses: [
+    { ref: '1:14', hebrew: 'יְהִי מְאֹרֹת בִּרְקִיעַ הַשָּׁמַיִם', highlight: 'מְאֹרֹת' },
+    { ref: '1:16', hebrew: 'וַיַּעַשׂ אֱלֹהִים אֶת־שְׁנֵי הַמְּאֹרֹת הַגְּדֹלִים', highlight: 'הַגְּדֹלִים' },
+    { ref: '1:16b', hebrew: 'וְאֵת הַכּוֹכָבִים', highlight: 'הַכּוֹכָבִים' },
+  ]},
+  { id: 'day5', title: 'יוֹם חֲמִישִׁי', titleKr: '욤 하미쉬', verses: [
+    { ref: '1:20', hebrew: 'יִשְׁרְצוּ הַמַּיִם שֶׁרֶץ נֶפֶשׁ חַיָּה וְעוֹף יְעוֹפֵף', highlight: 'נֶפֶשׁ חַיָּה' },
+    { ref: '1:21', hebrew: 'וַיִּבְרָא אֱלֹהִים אֶת־הַתַּנִּינִם הַגְּדֹלִים', highlight: 'הַתַּנִּינִם' },
+    { ref: '1:22', hebrew: 'וַיְבָרֶךְ אֹתָם אֱלֹהִים לֵאמֹר פְּרוּ וּרְבוּ', highlight: 'פְּרוּ וּרְבוּ' },
+  ]},
+  { id: 'day6', title: 'יוֹם הַשִּׁשִּׁי', titleKr: '욤 하쉬쉬', verses: [
+    { ref: '1:24', hebrew: 'תּוֹצֵא הָאָרֶץ נֶפֶשׁ חַיָּה לְמִינָהּ', highlight: 'לְמִינָהּ' },
+    { ref: '1:26', hebrew: 'נַעֲשֶׂה אָדָם בְּצַלְמֵנוּ כִּדְמוּתֵנוּ', highlight: 'בְּצַלְמֵנוּ' },
+    { ref: '1:27', hebrew: 'וַיִּבְרָא אֱלֹהִים אֶת־הָאָדָם בְּצַלְמוֹ ... זָכָר וּנְקֵבָה', highlight: 'זָכָר וּנְקֵבָה' },
+  ]},
+  { id: 'day7', title: 'יוֹם הַשְּׁבִיעִי', titleKr: '욤 하쉐비이', verses: [
+    { ref: '2:1', hebrew: 'וַיְכֻלּוּ הַשָּׁמַיִם וְהָאָרֶץ וְכָל־צְבָאָם', highlight: 'וַיְכֻלּוּ' },
+    { ref: '2:2', hebrew: 'וַיִּשְׁבֹּת בַּיּוֹם הַשְּׁבִיעִי מִכָּל־מְלַאכְתּוֹ', highlight: 'וַיִּשְׁבֹּת' },
+    { ref: '2:3', hebrew: 'וַיְבָרֶךְ אֱלֹהִים אֶת־יוֹם הַשְּׁבִיעִי וַיְקַדֵּשׁ אֹתוֹ', highlight: 'וַיְקַדֵּשׁ' },
+  ]},
+  { id: 'structure', title: 'הַמִּבְנֶה', titleKr: '하미브네', verses: [{ hebrew: 'תֹהוּ  ←→  מָלֵא' }] },
+  { id: 'epilogue', title: 'טוֹב מְאֹד', titleKr: '토브 메오드', verses: [
+    { ref: '1:31', hebrew: 'וַיַּרְא אֱלֹהִים אֶת־כָּל־אֲשֶׁר עָשָׂה וְהִנֵּה־טוֹב מְאֹד', highlight: 'טוֹב מְאֹד' },
+  ]},
+];
+
+// ── Load ────────────────────────────────────────────────────────
+async function loadSubtitles() {
+  try {
+    const res = await fetch('/subtitles.json');
+    if (!res.ok) throw new Error('Failed to load');
+    subtitlesData = await res.json();
+  } catch (err) {
+    document.getElementById('app').innerHTML =
+      '<div class="help-text">subtitles.json을 불러올 수 없습니다. 서버가 실행 중인지 확인하세요.</div>';
+    return;
+  }
+  render();
+}
+
+// ── Render ──────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = subtitlesData.scenes.map((scene, si) => {
+    const ref = HEBREW_DATA[si];
+    const versesHTML = scene.verses.map((v, vi) => {
+      const hRef = ref?.verses[vi];
+      const hasHighlight = v.highlightMean !== undefined;
+      return `
+        <div class="verse-block">
+          ${hRef?.ref ? `<div class="verse-ref">${hRef.ref}</div>` : ''}
+          ${hRef?.hebrew ? `<div class="hebrew-preview">${hRef.hebrew}</div>` : ''}
+          <div class="verse-fields ${hasHighlight ? '' : 'single'}">
+            <div class="field-group">
+              <label>한국어 번역</label>
+              <textarea rows="2" data-scene="${si}" data-verse="${vi}" data-field="korean">${escapeHTML(v.korean || '')}</textarea>
+            </div>
+            ${hasHighlight ? `
+            <div class="field-group">
+              <label>키워드 설명 ${hRef?.highlight ? `<span style="color:var(--gold)">(${hRef.highlight})</span>` : ''}</label>
+              <input type="text" data-scene="${si}" data-verse="${vi}" data-field="highlightMean" value="${escapeAttr(v.highlightMean || '')}">
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="scene-block">
+        <div class="scene-header" onclick="toggleScene(this)">
+          <span class="toggle open">&#9654;</span>
+          <span class="scene-id">${scene.id}</span>
+          <span class="scene-title">
+            <span style="color:var(--gold); font-family:'Frank Ruhl Libre',serif; direction:rtl">${ref?.title || ''}</span>
+            ${ref?.titleKr || ''}
+          </span>
+        </div>
+        <div class="scene-body">
+          <div class="field-group">
+            <label>장면 부제 (subtitle)</label>
+            <input type="text" data-scene="${si}" data-field="subtitle" value="${escapeAttr(scene.subtitle || '')}">
+          </div>
+          ${versesHTML}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Bind input events
+  app.querySelectorAll('input, textarea').forEach(el => {
+    el.addEventListener('input', onFieldChange);
+  });
+}
+
+function toggleScene(header) {
+  const body = header.nextElementSibling;
+  const toggle = header.querySelector('.toggle');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    toggle.classList.add('open');
+  } else {
+    body.style.display = 'none';
+    toggle.classList.remove('open');
+  }
+}
+
+function onFieldChange(e) {
+  const el = e.target;
+  const si = parseInt(el.dataset.scene);
+  const field = el.dataset.field;
+  const vi = el.dataset.verse !== undefined ? parseInt(el.dataset.verse) : null;
+
+  if (vi !== null) {
+    subtitlesData.scenes[si].verses[vi][field] = el.value;
+  } else {
+    subtitlesData.scenes[si][field] = el.value;
+  }
+
+  showStatus('수정됨 (미저장)', '');
+}
+
+// ── Save ────────────────────────────────────────────────────────
+async function saveToServer() {
+  showStatus('저장 중...', '');
+  try {
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subtitlesData),
+    });
+    const result = await res.json();
+    if (result.ok) {
+      showStatus(`저장 완료 (${new Date().toLocaleTimeString()})`, 'saved');
+    } else {
+      showStatus(`저장 실패: ${result.error}`, 'error');
+    }
+  } catch (err) {
+    showStatus(`서버 연결 실패: ${err.message}`, 'error');
+  }
+}
+
+function downloadJSON() {
+  const blob = new Blob(
+    [JSON.stringify(subtitlesData, null, 2)],
+    { type: 'application/json' }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'subtitles.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus('JSON 파일 다운로드됨', 'saved');
+}
+
+function showStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status ' + cls;
+}
+
+function escapeHTML(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escapeAttr(str) {
+  return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ────────────────────────────────────────────────────────
+loadSubtitles();
+</script>
+</body>
+</html>

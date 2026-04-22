@@ -1,0 +1,26 @@
+{
+  "name": "genesis-subtitles",
+  "version": "1.0.0",
+  "description": "히브리어 창세기 자막 - Remotion 영상",
+  "scripts": {
+    "start": "npx remotion studio",
+    "build": "npx remotion render src/index.ts GenesisSubtitles out/genesis.mp4",
+    "render": "npx remotion render src/index.ts GenesisSubtitles out/genesis.mp4 --codec h264 --crf 18",
+    "editor": "node server.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.242",
+    "@remotion/google-fonts": "4.0.242",
+    "@remotion/zod-types": "^4.0.242",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.242",
+    "zod": "^3.22.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "prettier": "^3.8.3",
+    "typescript": "^5.7.0"
+  }
+}
