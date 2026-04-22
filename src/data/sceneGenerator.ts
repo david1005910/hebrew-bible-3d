@@ -72,6 +72,72 @@ export function transliterate(hebrew: string): string {
   return result.replace(/\s+/g, ' ').trim();
 }
 
+// Latin transliteration → Korean phonetic approximation
+const KR_CV: Record<string, string> = {
+  sha: '샤', she: '셰', shi: '시', sho: '쇼', shu: '슈',
+  cha: '하', che: '헤', chi: '히', cho: '호', chu: '후',
+  tsa: '차', tse: '체', tsi: '치', tso: '초', tsu: '추',
+  kha: '하', khe: '헤', khi: '히', kho: '호', khu: '후',
+  ba: '바', be: '베', bi: '비', bo: '보', bu: '부',
+  ga: '가', ge: '게', gi: '기', go: '고', gu: '구',
+  da: '다', de: '데', di: '디', do: '도', du: '두',
+  ha: '하', he: '헤', hi: '히', ho: '호', hu: '후',
+  va: '바', ve: '베', vi: '비', vo: '보', vu: '부',
+  za: '자', ze: '제', zi: '지', zo: '조', zu: '주',
+  ta: '타', te: '테', ti: '티', to: '토', tu: '투',
+  ya: '야', ye: '예', yi: '이', yo: '요', yu: '유',
+  ka: '카', ke: '케', ki: '키', ko: '코', ku: '쿠',
+  la: '라', le: '레', li: '리', lo: '로', lu: '루',
+  ma: '마', me: '메', mi: '미', mo: '모', mu: '무',
+  na: '나', ne: '네', ni: '니', no: '노', nu: '누',
+  sa: '사', se: '세', si: '시', so: '소', su: '수',
+  ra: '라', re: '레', ri: '리', ro: '로', ru: '루',
+  fa: '파', fe: '페', fi: '피', fo: '포', fu: '푸',
+  pa: '파', pe: '페', pi: '피', po: '포', pu: '푸',
+  a: '아', e: '에', i: '이', o: '오', u: '우',
+};
+const KR_C: Record<string, string> = {
+  b: '브', g: '그', d: '드', h: '흐', v: '브', z: '즈',
+  t: '트', k: '크', l: '르', m: '므', n: '느', s: '스',
+  r: '르', f: '프', p: '프', y: '이',
+};
+const MULTI_CONSONANTS = ['sh', 'ch', 'ts', 'kh'];
+
+export function transliterateKorean(hebrew: string): string {
+  const latin = transliterate(hebrew).toLowerCase();
+  let result = '';
+  let i = 0;
+  while (i < latin.length) {
+    if (latin[i] === ' ') { result += ' '; i++; continue; }
+    if (latin[i] === "'") { i++; continue; }
+
+    // detect consonant (try multi-char first)
+    let cons = '';
+    if (i + 1 < latin.length) {
+      const two = latin.substring(i, i + 2);
+      if (MULTI_CONSONANTS.includes(two)) { cons = two; i += 2; }
+    }
+    if (!cons && 'bgdhvztyklmnsrfp'.includes(latin[i])) {
+      cons = latin[i]; i++;
+    }
+
+    // detect vowel
+    if (i < latin.length && 'aeiou'.includes(latin[i])) {
+      const key = cons + latin[i];
+      result += KR_CV[key] || key;
+      i++;
+    } else if (cons) {
+      result += KR_C[cons] || cons;
+    } else if ('aeiou'.includes(latin[i])) {
+      result += KR_CV[latin[i]] || latin[i];
+      i++;
+    } else {
+      i++;
+    }
+  }
+  return result;
+}
+
 export interface GeneratedResult {
   scenes: Scene[];
   sceneDurationSeconds: number;
@@ -146,7 +212,7 @@ export function generateScenes(
         translit: transliterate(rv.hebrew),
         korean: rv.korean,
         highlight,
-        highlightMean: highlight ? transliterate(highlight) : undefined,
+        highlightMean: highlight ? transliterateKorean(highlight) : undefined,
       };
     });
 

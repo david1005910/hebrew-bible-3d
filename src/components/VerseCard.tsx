@@ -93,6 +93,7 @@ export const VerseCard: React.FC<Props> = ({
           fontWeight: 500,
           lineHeight: 1.3,
           marginBottom: 32,
+          textAlign: 'right',
         }}
       >
         <HebrewHighlight

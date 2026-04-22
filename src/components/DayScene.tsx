@@ -1,6 +1,5 @@
 import React from 'react';
 import { Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
-import { SceneTitle } from './SceneTitle';
 import { VerseCard } from './VerseCard';
 import {
   hebrewTextStyle,
@@ -28,26 +27,18 @@ export const DayScene: React.FC<Props> = ({ scene, durationFrames }) => {
   // Total scene duration in seconds (default 72s for original scenes)
   const totalSec = durationFrames ? durationFrames / fps : 72;
 
-  // Proportional timing: title ~11%, closing ~8%, verses get the rest
+  // Proportional timing: closing ~8%, verses get the rest (no title)
   const hasClosing = Boolean(scene.dayLabel && !scene.verseScene);
-  const titleEnd = Math.max(2, Math.min(8, totalSec * 0.12));
+  const verseStart = 0.3; // small initial delay
   const closingDuration = hasClosing ? Math.max(2, Math.min(6, totalSec * 0.08)) : 0;
   const closingStart = totalSec - closingDuration;
-  const verseDuration = (closingStart - titleEnd) / verses.length;
+  const verseDuration = (closingStart - verseStart) / verses.length;
 
   return (
     <>
-      {/* Scene title: 0.3s – 8.2s */}
-      <Sequence
-        from={sec(0.3, fps)}
-        durationInFrames={sec(titleEnd - 0.3 + 0.2, fps)}
-      >
-        <SceneTitle title={scene.title} subtitle={scene.subtitle} />
-      </Sequence>
-
       {/* Verse cards */}
       {verses.map((verse, i) => {
-        const start = titleEnd + i * verseDuration;
+        const start = verseStart + i * verseDuration;
         return (
           <Sequence
             key={i}

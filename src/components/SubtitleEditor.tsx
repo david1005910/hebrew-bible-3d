@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { getRemotionEnvironment, staticFile } from 'remotion';
 import { SCENES } from '../data/scenes';
 import type { Scene } from '../data/scenes';
@@ -16,6 +16,12 @@ import {
 export const SubtitleEditor: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
+
+  // 단어 치환
+  const [findWord, setFindWord] = useState('');
+  const [replaceWord, setReplaceWord] = useState('');
+  const [replaceMsg, setReplaceMsg] = useState('');
+  const [replaceOpen, setReplaceOpen] = useState(false);
 
   // 동적 장면 구독
   const [dynamicScenes, setDynScenes] = useState<Scene[] | null>(
@@ -104,6 +110,70 @@ export const SubtitleEditor: React.FC = () => {
       });
     },
     [safeIndex],
+  );
+
+  // 일치 건수 미리보기
+  const matchPreview = useMemo(() => {
+    if (!findWord) return { total: 0, current: 0 };
+    const escaped = findWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'g');
+
+    let total = 0;
+    let current = 0;
+    editData.scenes.forEach((s, i) => {
+      let sceneCount = 0;
+      sceneCount += (s.subtitle?.match(regex) || []).length;
+      s.verses.forEach((v) => {
+        sceneCount += (v.korean?.match(regex) || []).length;
+        sceneCount += (v.highlightMean?.match(regex) || []).length;
+      });
+      total += sceneCount;
+      if (i === safeIndex) current = sceneCount;
+    });
+    return { total, current };
+  }, [findWord, editData, safeIndex]);
+
+  // 단어 치환 실행 (전체 또는 현재 장면만)
+  const handleReplace = useCallback(
+    (scope: 'all' | 'current') => {
+      if (!findWord) return;
+
+      let count = 0;
+      const countingReplace = (
+        text: string | undefined,
+      ): string | undefined => {
+        if (!text) return text;
+        const regex = new RegExp(
+          findWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+          'g',
+        );
+        const matches = text.match(regex);
+        if (matches) count += matches.length;
+        return text.split(findWord).join(replaceWord);
+      };
+
+      setEditData((prev) => ({
+        scenes: prev.scenes.map((s, i) => {
+          if (scope === 'current' && i !== safeIndex) return s;
+          return {
+            ...s,
+            subtitle: countingReplace(s.subtitle),
+            verses: s.verses.map((v) => ({
+              ...v,
+              korean: countingReplace(v.korean),
+              highlightMean: countingReplace(v.highlightMean),
+            })),
+          };
+        }),
+      }));
+
+      const label = scope === 'current' ? '현재 장면' : '전체';
+      setReplaceMsg(
+        count > 0 ? `${label}: ${count}건 치환 완료` : '일치 항목 없음',
+      );
+      setTimeout(() => setReplaceMsg(''), 3000);
+    },
+    [findWord, replaceWord, safeIndex],
   );
 
   // 저장
@@ -247,6 +317,107 @@ export const SubtitleEditor: React.FC = () => {
           동적 구절 모드 — {activeScenes.length}개 장면
         </div>
       )}
+
+      {/* 단어 치환 섹션 */}
+      <div style={replaceSectionStyle}>
+        <button
+          onClick={() => setReplaceOpen((v) => !v)}
+          style={replaceToggleStyle}
+        >
+          {replaceOpen ? '▾' : '▸'} 단어 치환
+          {findWord && matchPreview.total > 0 && (
+            <span style={{ color: '#6cf', marginLeft: 6 }}>
+              ({matchPreview.total})
+            </span>
+          )}
+        </button>
+        {replaceOpen && (
+          <div style={{ padding: '8px 16px 10px' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>찾을 단어</label>
+                <input
+                  value={findWord}
+                  onChange={(e) => setFindWord(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleReplace('all');
+                  }}
+                  style={inputStyle}
+                  placeholder="예: 하나님"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>바꿀 단어</label>
+                <input
+                  value={replaceWord}
+                  onChange={(e) => setReplaceWord(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleReplace('all');
+                  }}
+                  style={inputStyle}
+                  placeholder="예: 하느님"
+                />
+              </div>
+            </div>
+            {/* 일치 건수 미리보기 */}
+            {findWord && (
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                전체 {matchPreview.total}건 / 현재 장면 {matchPreview.current}건
+                일치
+              </div>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
+              }}
+            >
+              <button
+                onClick={() => handleReplace('all')}
+                disabled={!findWord}
+                style={{
+                  ...btnBase,
+                  background: findWord
+                    ? 'rgba(100,160,250,0.9)'
+                    : 'rgba(100,160,250,0.3)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                전체 치환
+              </button>
+              <button
+                onClick={() => handleReplace('current')}
+                disabled={!findWord}
+                style={{
+                  ...btnBase,
+                  background: findWord
+                    ? 'rgba(100,200,160,0.9)'
+                    : 'rgba(100,200,160,0.3)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+              >
+                현재 장면만
+              </button>
+              {replaceMsg && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: replaceMsg.includes('없음') ? '#f90' : '#6f6',
+                  }}
+                >
+                  {replaceMsg}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 장면 네비게이션 */}
       <div style={navStyle}>
@@ -592,4 +763,19 @@ const btnBase: React.CSSProperties = {
   color: '#ddd',
   cursor: 'pointer',
   fontSize: 12,
+};
+
+const replaceSectionStyle: React.CSSProperties = {
+  borderBottom: '1px solid rgba(255,255,255,0.08)',
+};
+
+const replaceToggleStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 16px',
+  background: 'none',
+  border: 'none',
+  color: '#aaa',
+  fontSize: 12,
+  cursor: 'pointer',
+  textAlign: 'left',
 };
