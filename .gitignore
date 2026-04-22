@@ -7,3 +7,6 @@ public/bg-video/*.webm
 public/bg-music/*.mp3
 public/bg-music/*.wav
 public/bg-music/*.ogg
+public/ai-config.json
+public/bible-subtitles.json
+public/saved-verse-ranges.json
