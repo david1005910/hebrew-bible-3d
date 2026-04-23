@@ -10,3 +10,4 @@ public/bg-music/*.ogg
 public/ai-config.json
 public/bible-subtitles.json
 public/saved-verse-ranges.json
+public/replace-rules.json
