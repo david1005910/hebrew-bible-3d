@@ -6,6 +6,7 @@ import { COLOR } from '../styles/subtitle';
 import { mergeSubtitles, type SubtitlesData } from '../data/useSubtitles';
 import {
   getDynamicScenes,
+  setDynamicScenes,
   subscribeDynamicScenes,
 } from '../data/dynamicScenes';
 
@@ -295,15 +296,32 @@ export const SubtitleEditor: React.FC = () => {
           };
         });
         try {
+          // 현재 런타임 props를 유지하면서 subtitleScenes만 교체
           updateDefaultProps({
             compositionId: 'BibleVerseSubtitles',
             defaultProps: (prev) => ({
-              ...prev.savedDefaultProps,
+              ...prev.unsavedDefaultProps,
               subtitleScenes: merged,
             }),
           });
         } catch {
           // composition 없으면 무시
+        }
+
+        // 공유 스토어 업데이트 → SubtitleEditor/다른 컴포넌트에도 반영
+        setDynamicScenes(merged);
+
+        // CLI 렌더링용 파일도 업데이트
+        try {
+          await writeStaticFile({
+            filePath: 'bible-verse-data.json',
+            contents: JSON.stringify({
+              scenes: merged,
+              sceneDurationFrames: undefined, // calculateMetadata가 기존 값 사용
+            }, null, 2),
+          });
+        } catch {
+          // 무시
         }
       } else {
         // 기본 모드: GenesisSubtitles에 반영
