@@ -590,34 +590,12 @@ export const SubtitleEditor: React.FC = () => {
         </button>
       </div>
 
-      {/* 장면 퀵 점프 */}
-      <div style={quickNavStyle}>
-        {activeScenes.map((s, i) => (
-          <button
-            key={s.id}
-            onClick={() => setSceneIndex(i)}
-            style={{
-              ...quickBtnStyle,
-              background:
-                i === safeIndex
-                  ? 'rgba(212,175,55,0.8)'
-                  : 'rgba(255,255,255,0.06)',
-              color: i === safeIndex ? '#000' : '#aaa',
-              fontWeight: i === safeIndex ? 700 : 400,
-            }}
-            title={s.titleKr || s.subtitle}
-          >
-            {i + 1}
-          </button>
-        ))}
-      </div>
 
       {/* 장면 정보 */}
       <div style={sectionStyle}>
         <div style={{ fontSize: 11, color: '#777', marginBottom: 4 }}>
           {scene.id} — {scene.chapter}
         </div>
-        <div style={hebrewReadonly}>{scene.title}</div>
         <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>
           {scene.titleKr}
         </div>
@@ -639,14 +617,6 @@ export const SubtitleEditor: React.FC = () => {
           <div key={vi} style={verseBlockStyle}>
             <div style={verseDividerStyle}>
               {v.ref ? `── ${v.ref} ──` : `── 절 ${vi + 1} ──`}
-            </div>
-
-            {/* 히브리어 원문 (읽기 전용) */}
-            <div style={hebrewSmallStyle} dir="rtl">
-              {v.hebrew}
-            </div>
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
-              {v.translit}
             </div>
 
             {/* korean */}
