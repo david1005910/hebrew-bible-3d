@@ -63,8 +63,7 @@ async function calculateBibleVerseMetadata({
   compositionId: string;
   defaultProps: Record<string, unknown>;
 }) {
-  // BibleVerseLoader에서 이미 scenes를 생성하여 props에 전달한 경우
-  // 중복 API 호출 없이 바로 사용
+  // 1차: BibleVerseLoader에서 이미 scenes를 생성하여 props에 전달한 경우
   const existingScenes = props.subtitleScenes as Scene[] | undefined;
   const existingDuration = props.sceneDurationFrames as number | undefined;
 
@@ -75,7 +74,29 @@ async function calculateBibleVerseMetadata({
     };
   }
 
-  // verseRange props로 직접 입력한 경우 API에서 fetch
+  // 2차: 저장된 bible-verse-data.json에서 로드 (CLI 렌더링용)
+  try {
+    const fileUrl = staticFile('bible-verse-data.json') + '?t=' + Date.now();
+    const fileRes = await fetch(fileUrl, { cache: 'no-store' });
+    if (fileRes.ok) {
+      const saved = await fileRes.json();
+      if (saved.scenes && saved.scenes.length > 0 && saved.sceneDurationFrames) {
+        return {
+          durationInFrames: saved.sceneDurationFrames * saved.scenes.length,
+          props: {
+            ...props,
+            subtitleScenes: saved.scenes,
+            sceneDurationFrames: saved.sceneDurationFrames,
+            verseRange: saved.verseRange || props.verseRange,
+          },
+        };
+      }
+    }
+  } catch {
+    // 파일 없으면 다음 단계로
+  }
+
+  // 3차: verseRange props로 직접 입력한 경우 API에서 fetch
   const verseRange = (props.verseRange as string) || '';
 
   if (!verseRange) {

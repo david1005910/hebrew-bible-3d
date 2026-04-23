@@ -92,6 +92,7 @@ export const VerseCard: React.FC<Props> = ({
           fontSize: 88,
           fontWeight: 500,
           lineHeight: 1.3,
+          marginTop: 80,
           marginBottom: 32,
           textAlign: 'right',
         }}

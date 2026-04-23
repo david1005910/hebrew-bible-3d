@@ -198,7 +198,7 @@ export const BibleVerseLoader: React.FC = () => {
       const sceneDurationFrames = Math.round(generated.sceneDurationSeconds * FPS);
 
       // Studio API로 composition에 즉시 반영
-      const { updateDefaultProps, reevaluateComposition } =
+      const { updateDefaultProps, reevaluateComposition, writeStaticFile } =
         await import('@remotion/studio');
 
       updateDefaultProps({
@@ -216,6 +216,20 @@ export const BibleVerseLoader: React.FC = () => {
 
       // 동적 장면을 공유 스토어에 저장 → SubtitleEditor에 반영
       setDynamicScenes(generated.scenes);
+
+      // CLI 렌더링용: 전체 장면 데이터를 파일로 저장
+      try {
+        await writeStaticFile({
+          filePath: 'bible-verse-data.json',
+          contents: JSON.stringify({
+            verseRange,
+            scenes: generated.scenes,
+            sceneDurationFrames,
+          }, null, 2),
+        });
+      } catch {
+        // 저장 실패해도 Studio 동작에는 영향 없음
+      }
 
       setResult({
         totalVerses: generated.totalVerses,

@@ -3,7 +3,7 @@ import React from 'react';
 // ── 자막 모드 색상 (genesis-no-bg) ──────────────────────────────
 export const COLOR = {
   text: '#f6f4ef',
-  hebrew: '#d4af37', // 금색
+  hebrew: '#4caf50', // 초록색
   muted: 'rgba(246, 244, 239, 0.55)',
   divider: 'rgba(246, 244, 239, 0.3)',
 } as const;
@@ -19,7 +19,7 @@ export const TEXT_SHADOW = {
   hebrew: [
     '0 2px 8px rgba(0,0,0,0.95)',
     '0 4px 16px rgba(0,0,0,0.8)',
-    '0 0 18px rgba(212, 175, 55, 0.4)',
+    '0 0 18px rgba(76, 175, 80, 0.4)',
     '0 0 2px rgba(0,0,0,1)',
   ].join(', '),
 } as const;
