@@ -4,6 +4,7 @@ import { Movie, type MovieProps } from './components/Movie';
 import { SubtitleEditor } from './components/SubtitleEditor';
 import { BibleVerseLoader } from './components/BibleVerseLoader';
 import { BgMusicUploader } from './components/BgMusicUploader';
+import { BgVideoUploader } from './components/BgVideoUploader';
 import { TOTAL_DURATION_FRAMES, FPS, SCENE_DURATION_FRAMES } from './styles/subtitle';
 import { mergeSubtitles, type SubtitlesData } from './data/useSubtitles';
 import { parseVerseRange, fetchBibleVerses } from './data/bibleApi';
@@ -194,6 +195,7 @@ export const RemotionRoot: React.FC = () => {
       {/* Studio-only panels */}
       <SubtitleEditor />
       <BibleVerseLoader />
+      <BgVideoUploader />
       <BgMusicUploader />
     </>
   );
