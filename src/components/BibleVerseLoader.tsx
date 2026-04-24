@@ -201,23 +201,7 @@ export const BibleVerseLoader: React.FC = () => {
       const { updateDefaultProps, reevaluateComposition, writeStaticFile } =
         await import('@remotion/studio');
 
-      updateDefaultProps({
-        compositionId: 'BibleVerseSubtitles',
-        defaultProps: () => ({
-          verseRange,
-          bgVideoSrc: '',
-          bgVideoOpacity: 1,
-          subtitleScenes: generated.scenes,
-          sceneDurationFrames,
-        }),
-      });
-
-      reevaluateComposition();
-
-      // 동적 장면을 공유 스토어에 저장 → SubtitleEditor에 반영
-      setDynamicScenes(generated.scenes);
-
-      // CLI 렌더링용: 전체 장면 데이터를 파일로 저장
+      // 1. CLI 렌더링용 파일을 먼저 저장 (calculateMetadata에서 참조)
       try {
         await writeStaticFile({
           filePath: 'bible-verse-data.json',
@@ -230,6 +214,35 @@ export const BibleVerseLoader: React.FC = () => {
       } catch {
         // 저장 실패해도 Studio 동작에는 영향 없음
       }
+
+      // 2. 동적 장면을 공유 스토어에 저장 → SubtitleEditor에 반영
+      setDynamicScenes(generated.scenes);
+
+      // 3. BibleVerseSubtitles composition의 props 업데이트
+      //    prev.unsavedDefaultProps를 사용해 기존 설정(배경영상, 음악 등)을 유지
+      updateDefaultProps({
+        compositionId: 'BibleVerseSubtitles',
+        defaultProps: (prev) => ({
+          ...prev.unsavedDefaultProps,
+          verseRange,
+          subtitleScenes: generated.scenes,
+          sceneDurationFrames,
+        }),
+      });
+
+      // 4. BibleVerseSubtitles composition으로 자동 전환 + re-evaluate
+      //    Studio 내부의 popstate 리스너가 URL 변경을 감지하여 composition을 전환함
+      try {
+        window.history.pushState({}, 'Studio', '/BibleVerseSubtitles');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch {
+        // URL 전환 실패 시 무시
+      }
+
+      // composition 전환 후 calculateMetadata 실행을 위해 약간의 지연
+      setTimeout(() => {
+        try { reevaluateComposition(); } catch { /* 무시 */ }
+      }, 300);
 
       setResult({
         totalVerses: generated.totalVerses,

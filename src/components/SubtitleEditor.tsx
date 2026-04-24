@@ -311,18 +311,32 @@ export const SubtitleEditor: React.FC = () => {
         // 공유 스토어 업데이트 → SubtitleEditor/다른 컴포넌트에도 반영
         setDynamicScenes(merged);
 
-        // CLI 렌더링용 파일도 업데이트
+        // CLI 렌더링용 파일도 업데이트 (기존 sceneDurationFrames 유지)
         try {
+          let existingDuration: number | undefined;
+          try {
+            const res = await fetch(
+              staticFile('bible-verse-data.json') + '?t=' + Date.now(),
+              { cache: 'no-store' },
+            );
+            if (res.ok) {
+              const data = await res.json();
+              existingDuration = data.sceneDurationFrames;
+            }
+          } catch { /* 무시 */ }
           await writeStaticFile({
             filePath: 'bible-verse-data.json',
             contents: JSON.stringify({
               scenes: merged,
-              sceneDurationFrames: undefined, // calculateMetadata가 기존 값 사용
+              sceneDurationFrames: existingDuration,
             }, null, 2),
           });
         } catch {
           // 무시
         }
+
+        // 현재 composition re-evaluate
+        try { reevaluateComposition(); } catch { /* 무시 */ }
       } else {
         // 기본 모드: GenesisSubtitles에 반영
         const merged = mergeSubtitles(editData);

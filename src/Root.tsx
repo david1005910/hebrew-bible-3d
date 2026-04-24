@@ -81,13 +81,14 @@ async function calculateBibleVerseMetadata({
     const fileRes = await fetch(fileUrl, { cache: 'no-store' });
     if (fileRes.ok) {
       const saved = await fileRes.json();
-      if (saved.scenes && saved.scenes.length > 0 && saved.sceneDurationFrames) {
+      if (saved.scenes && saved.scenes.length > 0) {
+        const duration = saved.sceneDurationFrames || SCENE_DURATION_FRAMES;
         return {
-          durationInFrames: saved.sceneDurationFrames * saved.scenes.length,
+          durationInFrames: duration * saved.scenes.length,
           props: {
             ...props,
             subtitleScenes: saved.scenes,
-            sceneDurationFrames: saved.sceneDurationFrames,
+            sceneDurationFrames: duration,
             verseRange: saved.verseRange || props.verseRange,
           },
         };
