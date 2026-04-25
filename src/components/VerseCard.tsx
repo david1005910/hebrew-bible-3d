@@ -85,17 +85,16 @@ export const VerseCard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Hebrew text (one line) */}
+      {/* Hebrew text */}
       <div
         style={{
           ...hebrewTextStyle,
-          fontSize: 88,
+          fontSize: 64,
           fontWeight: 500,
-          lineHeight: 1.3,
-          marginTop: 200,
-          marginBottom: 20,
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
+          lineHeight: 1.4,
+          marginTop: 120,
+          marginBottom: 16,
+          textAlign: 'right',
         }}
       >
         <HebrewHighlight
@@ -105,15 +104,14 @@ export const VerseCard: React.FC<Props> = ({
         />
       </div>
 
-      {/* Korean text (one line) */}
+      {/* Korean text */}
       <div
         style={{
           ...koreanTextStyle,
           fontSize: 44,
           fontWeight: 500,
-          lineHeight: 1.5,
-          marginBottom: 36,
-          whiteSpace: 'nowrap',
+          lineHeight: 1.6,
+          marginBottom: 28,
         }}
       >
         {verse.korean}
@@ -144,7 +142,7 @@ export const VerseCard: React.FC<Props> = ({
           <span
             style={{
               ...koreanTextStyle,
-              fontSize: 36,
+              fontSize: 28,
               letterSpacing: '0.05em',
             }}
           >
