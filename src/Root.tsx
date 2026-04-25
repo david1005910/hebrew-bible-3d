@@ -5,6 +5,7 @@ import { SubtitleEditor } from './components/SubtitleEditor';
 import { BibleVerseLoader } from './components/BibleVerseLoader';
 import { BgMusicUploader } from './components/BgMusicUploader';
 import { BgVideoUploader } from './components/BgVideoUploader';
+import { NarrationUploader } from './components/NarrationUploader';
 import { TOTAL_DURATION_FRAMES, FPS, SCENE_DURATION_FRAMES } from './styles/subtitle';
 import { mergeSubtitles, type SubtitlesData } from './data/useSubtitles';
 import { parseVerseRange, fetchBibleVerses } from './data/bibleApi';
@@ -147,6 +148,8 @@ export const RemotionRoot: React.FC = () => {
           bgVideoOpacity: 1,
           bgMusicSrc: '',
           bgMusicVolume: 0.3,
+          narrationSrc: '',
+          narrationVolume: 0.7,
           subtitleScenes: undefined,
         }}
         calculateMetadata={calculateSubtitleMetadata}
@@ -165,6 +168,8 @@ export const RemotionRoot: React.FC = () => {
           bgVideoOpacity: 1,
           bgMusicSrc: '',
           bgMusicVolume: 0.3,
+          narrationSrc: '',
+          narrationVolume: 0.7,
           subtitleScenes: undefined,
         }}
         calculateMetadata={calculateSubtitleMetadata}
@@ -186,6 +191,8 @@ export const RemotionRoot: React.FC = () => {
           bgVideoOpacity: 1,
           bgMusicSrc: '',
           bgMusicVolume: 0.3,
+          narrationSrc: '',
+          narrationVolume: 0.7,
           subtitleScenes: undefined,
           verseRange: '',
           sceneDurationFrames: SCENE_DURATION_FRAMES,
@@ -198,6 +205,7 @@ export const RemotionRoot: React.FC = () => {
       <BibleVerseLoader />
       <BgVideoUploader />
       <BgMusicUploader />
+      <NarrationUploader />
     </>
   );
 };

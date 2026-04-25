@@ -17,6 +17,8 @@ export type MovieProps = {
   bgVideoOpacity?: number;
   bgMusicSrc?: string;
   bgMusicVolume?: number;
+  narrationSrc?: string;
+  narrationVolume?: number;
   subtitleScenes?: Scene[];
   /** 동적 장면 duration (BibleVerseSubtitles용). 없으면 기본 SCENE_DURATION_FRAMES 사용. */
   sceneDurationFrames?: number;
@@ -37,6 +39,8 @@ export const Movie: React.FC<MovieProps> = ({
   bgVideoOpacity = 1,
   bgMusicSrc,
   bgMusicVolume,
+  narrationSrc,
+  narrationVolume,
   subtitleScenes,
   sceneDurationFrames: customDurationFrames,
 }) => {
@@ -73,6 +77,14 @@ export const Movie: React.FC<MovieProps> = ({
         <Audio
           src={staticFile(`bg-music/${bgMusicSrc}`)}
           volume={bgMusicVolume ?? 0.3}
+        />
+      )}
+
+      {/* Narration audio */}
+      {narrationSrc && (
+        <Audio
+          src={staticFile(`narration/${narrationSrc}`)}
+          volume={narrationVolume ?? 0.7}
         />
       )}
 
