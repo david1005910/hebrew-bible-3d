@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { getRemotionEnvironment } from 'remotion';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { getRemotionEnvironment, staticFile } from 'remotion';
 
 /**
  * Studio 전용 배경음악 업로드 패널.
@@ -24,6 +24,28 @@ const BgMusicPanel: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 마운트 시 저장된 설정 복원
+  useEffect(() => {
+    loadSavedConfig();
+  }, []);
+
+  const loadSavedConfig = async () => {
+    try {
+      const url = staticFile('bg-music-config.json') + '?t=' + Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const config = await res.json();
+        if (config.bgMusicSrc) {
+          setFileName(config.bgMusicSrc);
+          setVolume(config.bgMusicVolume ?? 0.3);
+          await applyProps(config.bgMusicSrc, config.bgMusicVolume ?? 0.3);
+        }
+      }
+    } catch {
+      // 설정 파일 없으면 무시
+    }
+  };
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,7 +178,16 @@ const BgMusicPanel: React.FC = () => {
 
 async function applyProps(bgMusicSrc: string, bgMusicVolume: number) {
   try {
-    const { updateDefaultProps, reevaluateComposition } = await import('@remotion/studio');
+    const { updateDefaultProps, reevaluateComposition, writeStaticFile } = await import('@remotion/studio');
+
+    // 설정을 bg-music-config.json에 영구 저장
+    const config = JSON.stringify({ bgMusicSrc, bgMusicVolume }, null, 2);
+    const encoded = new TextEncoder().encode(config);
+    await writeStaticFile({
+      filePath: 'bg-music-config.json',
+      contents: encoded.buffer as ArrayBuffer,
+    });
+
     const compositionIds = [
       'GenesisSubtitles',
       'GenesisSubtitles-Preview',

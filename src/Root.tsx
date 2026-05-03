@@ -43,9 +43,38 @@ const calculateSubtitleMetadata: CalculateMetadataFunction<MovieProps> = async (
     // fallback: use default SCENES (subtitleScenes = undefined)
   }
 
-  // 나레이션 설정 로드 (영구 저장된 config)
+  // 미디어 설정 로드 (영구 저장된 config 파일들)
+  let bgVideoSrc = props.bgVideoSrc;
+  let bgVideoOpacity = props.bgVideoOpacity;
+  let bgMusicSrc = props.bgMusicSrc;
+  let bgMusicVolume = props.bgMusicVolume;
   let narrationSrc = props.narrationSrc;
   let narrationVolume = props.narrationVolume;
+
+  try {
+    const vidUrl = staticFile('bg-video-config.json') + '?t=' + Date.now();
+    const vidRes = await fetch(vidUrl, { cache: 'no-store' });
+    if (vidRes.ok) {
+      const vidConfig = await vidRes.json();
+      if (vidConfig.bgVideoSrc) {
+        bgVideoSrc = vidConfig.bgVideoSrc;
+        bgVideoOpacity = vidConfig.bgVideoOpacity ?? 1;
+      }
+    }
+  } catch { /* 설정 파일 없으면 기존 props 유지 */ }
+
+  try {
+    const musUrl = staticFile('bg-music-config.json') + '?t=' + Date.now();
+    const musRes = await fetch(musUrl, { cache: 'no-store' });
+    if (musRes.ok) {
+      const musConfig = await musRes.json();
+      if (musConfig.bgMusicSrc) {
+        bgMusicSrc = musConfig.bgMusicSrc;
+        bgMusicVolume = musConfig.bgMusicVolume ?? 0.3;
+      }
+    }
+  } catch { /* 설정 파일 없으면 기존 props 유지 */ }
+
   try {
     const narUrl = staticFile('narration-config.json') + '?t=' + Date.now();
     const narRes = await fetch(narUrl, { cache: 'no-store' });
@@ -56,14 +85,16 @@ const calculateSubtitleMetadata: CalculateMetadataFunction<MovieProps> = async (
         narrationVolume = narConfig.narrationVolume ?? 0.7;
       }
     }
-  } catch {
-    // 설정 파일 없으면 기존 props 유지
-  }
+  } catch { /* 설정 파일 없으면 기존 props 유지 */ }
 
   return {
     props: {
       ...props,
       subtitleScenes,
+      bgVideoSrc,
+      bgVideoOpacity,
+      bgMusicSrc,
+      bgMusicVolume,
       narrationSrc,
       narrationVolume,
     },
@@ -85,23 +116,43 @@ async function calculateBibleVerseMetadata({
   compositionId: string;
   defaultProps: Record<string, unknown>;
 }) {
-  // 나레이션 설정 로드
-  let narrationProps: Record<string, unknown> = {};
+  // 미디어 설정 로드 (영구 저장된 config)
+  let mediaProps: Record<string, unknown> = {};
+  try {
+    const vidUrl = staticFile('bg-video-config.json') + '?t=' + Date.now();
+    const vidRes = await fetch(vidUrl, { cache: 'no-store' });
+    if (vidRes.ok) {
+      const vidConfig = await vidRes.json();
+      if (vidConfig.bgVideoSrc) {
+        mediaProps.bgVideoSrc = vidConfig.bgVideoSrc;
+        mediaProps.bgVideoOpacity = vidConfig.bgVideoOpacity ?? 1;
+      }
+    }
+  } catch { /* 무시 */ }
+
+  try {
+    const musUrl = staticFile('bg-music-config.json') + '?t=' + Date.now();
+    const musRes = await fetch(musUrl, { cache: 'no-store' });
+    if (musRes.ok) {
+      const musConfig = await musRes.json();
+      if (musConfig.bgMusicSrc) {
+        mediaProps.bgMusicSrc = musConfig.bgMusicSrc;
+        mediaProps.bgMusicVolume = musConfig.bgMusicVolume ?? 0.3;
+      }
+    }
+  } catch { /* 무시 */ }
+
   try {
     const narUrl = staticFile('narration-config.json') + '?t=' + Date.now();
     const narRes = await fetch(narUrl, { cache: 'no-store' });
     if (narRes.ok) {
       const narConfig = await narRes.json();
       if (narConfig.narrationSrc) {
-        narrationProps = {
-          narrationSrc: narConfig.narrationSrc,
-          narrationVolume: narConfig.narrationVolume ?? 0.7,
-        };
+        mediaProps.narrationSrc = narConfig.narrationSrc;
+        mediaProps.narrationVolume = narConfig.narrationVolume ?? 0.7;
       }
     }
-  } catch {
-    // 설정 파일 없으면 무시
-  }
+  } catch { /* 무시 */ }
 
   // 1차: BibleVerseLoader에서 이미 scenes를 생성하여 props에 전달한 경우
   const existingScenes = props.subtitleScenes as Scene[] | undefined;
@@ -110,7 +161,7 @@ async function calculateBibleVerseMetadata({
   if (existingScenes && existingScenes.length > 0 && existingDuration) {
     return {
       durationInFrames: existingDuration * existingScenes.length,
-      props: { ...props, ...narrationProps },
+      props: { ...props, ...mediaProps },
     };
   }
 
@@ -126,7 +177,7 @@ async function calculateBibleVerseMetadata({
           durationInFrames: duration * saved.scenes.length,
           props: {
             ...props,
-            ...narrationProps,
+            ...mediaProps,
             subtitleScenes: saved.scenes,
             sceneDurationFrames: duration,
             verseRange: saved.verseRange || props.verseRange,
@@ -142,7 +193,7 @@ async function calculateBibleVerseMetadata({
   const verseRange = (props.verseRange as string) || '';
 
   if (!verseRange) {
-    return { props: { ...props, ...narrationProps } };
+    return { props: { ...props, ...mediaProps } };
   }
 
   try {
@@ -162,13 +213,13 @@ async function calculateBibleVerseMetadata({
       durationInFrames: totalFrames,
       props: {
         ...props,
-        ...narrationProps,
+        ...mediaProps,
         subtitleScenes: result.scenes,
         sceneDurationFrames,
       },
     };
   } catch {
-    return { props: { ...props, ...narrationProps } };
+    return { props: { ...props, ...mediaProps } };
   }
 }
 

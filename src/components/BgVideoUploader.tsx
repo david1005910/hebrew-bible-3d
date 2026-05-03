@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { getRemotionEnvironment } from 'remotion';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { getRemotionEnvironment, staticFile } from 'remotion';
 
 /**
  * Studio 전용 배경영상 업로드 패널.
@@ -25,6 +25,28 @@ const BgVideoPanel: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 마운트 시 저장된 설정 복원
+  useEffect(() => {
+    loadSavedConfig();
+  }, []);
+
+  const loadSavedConfig = async () => {
+    try {
+      const url = staticFile('bg-video-config.json') + '?t=' + Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const config = await res.json();
+        if (config.bgVideoSrc) {
+          setFileName(config.bgVideoSrc);
+          setOpacity(config.bgVideoOpacity ?? 1);
+          await applyProps(config.bgVideoSrc, config.bgVideoOpacity ?? 1);
+        }
+      }
+    } catch {
+      // 설정 파일 없으면 무시
+    }
+  };
 
   const formatSize = (bytes: number): string => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -206,7 +228,16 @@ const BgVideoPanel: React.FC = () => {
 
 async function applyProps(bgVideoSrc: string, bgVideoOpacity: number) {
   try {
-    const { updateDefaultProps, reevaluateComposition } = await import('@remotion/studio');
+    const { updateDefaultProps, reevaluateComposition, writeStaticFile } = await import('@remotion/studio');
+
+    // 설정을 bg-video-config.json에 영구 저장
+    const config = JSON.stringify({ bgVideoSrc, bgVideoOpacity }, null, 2);
+    const encoded = new TextEncoder().encode(config);
+    await writeStaticFile({
+      filePath: 'bg-video-config.json',
+      contents: encoded.buffer as ArrayBuffer,
+    });
+
     const compositionIds = [
       'GenesisSubtitles',
       'GenesisSubtitles-Preview',
