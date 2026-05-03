@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { getRemotionEnvironment } from 'remotion';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { getRemotionEnvironment, staticFile } from 'remotion';
 
 /**
  * Studio 전용 나레이션 음성 업로드 패널.
  * 음성 파일을 업로드하면 public/narration/에 저장하고
  * 모든 composition의 narrationSrc/narrationVolume을 업데이트한다.
+ * 설정은 public/narration-config.json에 영구 저장된다.
  */
 export const NarrationUploader: React.FC = () => {
   try {
@@ -23,6 +24,28 @@ const NarrationPanel: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 마운트 시 저장된 설정 복원
+  useEffect(() => {
+    loadSavedConfig();
+  }, []);
+
+  const loadSavedConfig = async () => {
+    try {
+      const url = staticFile('narration-config.json') + '?t=' + Date.now();
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const config = await res.json();
+        if (config.narrationSrc) {
+          setFileName(config.narrationSrc);
+          setVolume(config.narrationVolume ?? 0.7);
+          await applyProps(config.narrationSrc, config.narrationVolume ?? 0.7);
+        }
+      }
+    } catch {
+      // 설정 파일이 없으면 무시
+    }
+  };
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,7 +178,15 @@ const NarrationPanel: React.FC = () => {
 
 async function applyProps(narrationSrc: string, narrationVolume: number) {
   try {
-    const { updateDefaultProps, reevaluateComposition } = await import('@remotion/studio');
+    const { updateDefaultProps, reevaluateComposition, writeStaticFile } = await import('@remotion/studio');
+
+    // 설정을 narration-config.json에 영구 저장
+    const config = JSON.stringify({ narrationSrc, narrationVolume }, null, 2);
+    await writeStaticFile({
+      filePath: 'narration-config.json',
+      contents: new TextEncoder().encode(config),
+    });
+
     const compositionIds = [
       'GenesisSubtitles',
       'GenesisSubtitles-Preview',
@@ -185,7 +216,7 @@ async function applyProps(narrationSrc: string, narrationVolume: number) {
 
 const toggleContainerStyle: React.CSSProperties = {
   position: 'fixed',
-  bottom: 170,
+  bottom: 220,
   right: 20,
   zIndex: 99998,
 };
@@ -204,7 +235,7 @@ const toggleBtnStyle: React.CSSProperties = {
 
 const panelStyle: React.CSSProperties = {
   position: 'fixed',
-  bottom: 170,
+  bottom: 220,
   right: 20,
   width: 300,
   background: '#1a1a1e',

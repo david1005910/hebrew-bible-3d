@@ -42,10 +42,30 @@ const calculateSubtitleMetadata: CalculateMetadataFunction<MovieProps> = async (
   } catch {
     // fallback: use default SCENES (subtitleScenes = undefined)
   }
+
+  // 나레이션 설정 로드 (영구 저장된 config)
+  let narrationSrc = props.narrationSrc;
+  let narrationVolume = props.narrationVolume;
+  try {
+    const narUrl = staticFile('narration-config.json') + '?t=' + Date.now();
+    const narRes = await fetch(narUrl, { cache: 'no-store' });
+    if (narRes.ok) {
+      const narConfig = await narRes.json();
+      if (narConfig.narrationSrc) {
+        narrationSrc = narConfig.narrationSrc;
+        narrationVolume = narConfig.narrationVolume ?? 0.7;
+      }
+    }
+  } catch {
+    // 설정 파일 없으면 기존 props 유지
+  }
+
   return {
     props: {
       ...props,
       subtitleScenes,
+      narrationSrc,
+      narrationVolume,
     },
   };
 };
@@ -65,6 +85,24 @@ async function calculateBibleVerseMetadata({
   compositionId: string;
   defaultProps: Record<string, unknown>;
 }) {
+  // 나레이션 설정 로드
+  let narrationProps: Record<string, unknown> = {};
+  try {
+    const narUrl = staticFile('narration-config.json') + '?t=' + Date.now();
+    const narRes = await fetch(narUrl, { cache: 'no-store' });
+    if (narRes.ok) {
+      const narConfig = await narRes.json();
+      if (narConfig.narrationSrc) {
+        narrationProps = {
+          narrationSrc: narConfig.narrationSrc,
+          narrationVolume: narConfig.narrationVolume ?? 0.7,
+        };
+      }
+    }
+  } catch {
+    // 설정 파일 없으면 무시
+  }
+
   // 1차: BibleVerseLoader에서 이미 scenes를 생성하여 props에 전달한 경우
   const existingScenes = props.subtitleScenes as Scene[] | undefined;
   const existingDuration = props.sceneDurationFrames as number | undefined;
@@ -72,7 +110,7 @@ async function calculateBibleVerseMetadata({
   if (existingScenes && existingScenes.length > 0 && existingDuration) {
     return {
       durationInFrames: existingDuration * existingScenes.length,
-      props: { ...props },
+      props: { ...props, ...narrationProps },
     };
   }
 
@@ -88,6 +126,7 @@ async function calculateBibleVerseMetadata({
           durationInFrames: duration * saved.scenes.length,
           props: {
             ...props,
+            ...narrationProps,
             subtitleScenes: saved.scenes,
             sceneDurationFrames: duration,
             verseRange: saved.verseRange || props.verseRange,
@@ -103,7 +142,7 @@ async function calculateBibleVerseMetadata({
   const verseRange = (props.verseRange as string) || '';
 
   if (!verseRange) {
-    return { props: { ...props } };
+    return { props: { ...props, ...narrationProps } };
   }
 
   try {
@@ -123,12 +162,13 @@ async function calculateBibleVerseMetadata({
       durationInFrames: totalFrames,
       props: {
         ...props,
+        ...narrationProps,
         subtitleScenes: result.scenes,
         sceneDurationFrames,
       },
     };
   } catch {
-    return { props: { ...props } };
+    return { props: { ...props, ...narrationProps } };
   }
 }
 
