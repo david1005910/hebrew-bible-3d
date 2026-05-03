@@ -182,9 +182,10 @@ async function applyProps(narrationSrc: string, narrationVolume: number) {
 
     // 설정을 narration-config.json에 영구 저장
     const config = JSON.stringify({ narrationSrc, narrationVolume }, null, 2);
+    const encoded = new TextEncoder().encode(config);
     await writeStaticFile({
       filePath: 'narration-config.json',
-      contents: new TextEncoder().encode(config),
+      contents: encoded.buffer as ArrayBuffer,
     });
 
     const compositionIds = [
